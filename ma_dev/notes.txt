@@ -1,0 +1,30 @@
+# Following: https://medium.com/data-science-collective/how-to-create-3d-models-from-any-image-with-ai-zero-shot-3d-reconstruction-21d3023ad81b
+
+# Create new environment with Python 3.12
+conda create -n map-anything python=3.12 -y
+
+conda activate map-anything
+
+# Find cuda version with nvidia-smi
+nvidia-smi
+
+# This gives 12.8, but apparently conda only supports up to 12.4 so far, so grab from online
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Confirm it worked:
+python
+import torch
+print(torch.cuda.is_available())  # Should return True
+print(torch.cuda.get_device_name(0))  # Shows GPU
+
+# Clone the repository
+git clone https://github.com/facebookresearch/map-anything.git
+cd map-anything
+
+# For all optional dependencies
+# See pyproject.toml for more details
+pip install -e ".[all]"
+pre-commit install
+
+# Extra installs
+pip install open3d numpy
