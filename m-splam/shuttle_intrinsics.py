@@ -27,7 +27,7 @@ from pathlib import Path
 from mast3r_slam.dataloader import resize_img
 
 # Dataset
-INTERMEDIATE_DATA_ROOT = Path('/home/bwilliams/encode/data/intermediate_data')
+INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 # The keyframe size parameter for mast3r-slam (single int, aspect ratio preserved)
 SLAM_SIZE = 512
 

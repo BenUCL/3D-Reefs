@@ -26,8 +26,8 @@ import wildflow.splat as splat
 from pathlib import Path
 
 # Hardcoded paths
-MSLAM_ROOT = Path('/home/bwilliams/encode/code/MASt3R-SLAM')
-INTERMEDIATE_DATA_ROOT = Path('/home/bwilliams/encode/data/intermediate_data')
+MSLAM_ROOT = Path('/home/ben/encode/code/MASt3R-SLAM')
+INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 
 def main():

@@ -16,7 +16,7 @@ import struct
 from pathlib import Path
 import shutil
 
-INTERMEDIATE_DATA_ROOT = Path('/home/bwilliams/encode/data/intermediate_data')
+INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 
 def read_cameras_bin(cameras_bin):

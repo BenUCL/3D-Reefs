@@ -22,7 +22,7 @@ from pathlib import Path
 import datetime
 
 
-INTERMEDIATE_DATA_ROOT = Path('/home/bwilliams/encode/data/intermediate_data')
+INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 
 def get_clean_colmap_env():

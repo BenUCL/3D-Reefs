@@ -5,9 +5,9 @@ train_splat.py
 Wrapper to run LichtFeld-Studio and collect a concise run report.
 
 Usage example:
-  python train_splat.py --lichtfeld /home/bwilliams/encode/code/lichtfeld-studio/build/LichtFeld-Studio \
-    -d /home/bwilliams/encode/data/intermediate_data/reef_soneva/for_splat \
-    -o /home/bwilliams/encode/code/lichtfeld-studio/output/m-slam_reef_soneva_ply \
+  python train_splat.py --lichtfeld /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio \
+    -d /home/ben/encode/data/intermediate_data/reef_soneva/for_splat \
+    -o /home/ben/encode/code/lichtfeld-studio/output/m-slam_reef_soneva_ply \
     -- --headless -i 25000 --max-cap 1000000
 
 Notes:

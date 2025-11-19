@@ -2,7 +2,7 @@
 # Copy this file and customize for each run
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "reef_new_demo"
+run_name: "new_machine_test"
 
 # Pipeline Control
 pipeline:
@@ -18,13 +18,13 @@ pipeline:
 # Paths 
 paths:
   # Raw input images (must be PNG)
-  images_path: "/home/bwilliams/encode/data/sweet_corals/subset_mono_processed"
+  images_path: "/home/ben/encode/data/soneva/ootbm/reef_soneva"
   # Directory where intermediate data and outputs will be stored
-  intermediate_data_root: "/home/bwilliams/encode/data/intermediate_data"
+  intermediate_data_root: "/home/ben/encode/data/intermediate_data"
   # MASt3R-SLAM installation directory
-  mast3r_slam_root: "/home/bwilliams/encode/code/MASt3R-SLAM"
+  mast3r_slam_root: "/home/ben/encode/code/MASt3R-SLAM"
   # LichtFeld-Studio binary path
-  lichtfeld_binary: "/home/bwilliams/encode/code/lichtfeld-studio/build/LichtFeld-Studio"
+  lichtfeld_binary: "/home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio"
 
 # Step 1: COLMAP Intrinsics Estimation (estimate_intrinsics.py)
 #TODO: see TODO in pipeline.py about how 100 images might be overkill.
@@ -45,7 +45,7 @@ intrinsics_conversion:
 # Step 3: MASt3R-SLAM
 mast3r_slam:
   # Config file (relative to mast3r_slam_root or absolute path)
-  config: "/home/bwilliams/encode/code/MASt3R-SLAM/config/base.yaml" #"config/base.yaml"
+  config: "/home/ben/encode/code/MASt3R-SLAM/config/base.yaml" #"config/base.yaml"
   # Enable visualization (requires manual Ctrl+C to continue pipeline after SLAM completes)
   # Set to false for automated runs. TODO: Run visualization in separate process to avoid blocking.
   enable_visualization: true
