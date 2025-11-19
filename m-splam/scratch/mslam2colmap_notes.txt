@@ -23,17 +23,18 @@ python main.py --dataset <path/to/folder> --config config/base.yaml --calib <pat
 
 # Setup Notes for mslam2colmap Pipeline
 
-## 1. Install COLMAP
+## 1. Install COLMAP (System Package - REQUIRED)
 sudo apt-get update && sudo apt-get install colmap
 
 ## 2. Environment Setup & Dependencies
-# Create/activate uv environment
-cd /home/bwilliams/encode/code
-source ben-splat-env/bin/activate
+# Use the MASt3R-SLAM conda environment (see M-SLAM_BLACKWELL_SETUP.md for full setup)
+conda activate mast3r-slam-blackwell
 
-# Install required Python packages into existing ben-splat-env
-# NOTE: Use 'uv pip install' to add to existing env, not 'uv add' (creates new .venv)
-uv pip install --python ben-splat-env/bin/python pycolmap open3d numpy torch torchvision torchaudio wildflow
+# Install additional Python packages needed for pipeline
+pip install pycolmap open3d pyyaml pillow
+
+# NOTE: OLD APPROACH DEPRECATED - Previously used uv environment 'ben-splat-env'
+# Now use single conda environment with system COLMAP (conda COLMAP 3.13.0 has bugs)
 
 #### starting new approach
 /home/bwilliams/encode/data/intermediate_data/reef_soneva_clmp (note reef_soneva is taken form the dataset name, so this should be a var which si set)

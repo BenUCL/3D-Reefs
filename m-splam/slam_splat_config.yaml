@@ -6,10 +6,6 @@ run_name: "new_machine_test"
 
 # Pipeline Control
 pipeline:
-  # Which environment/conda activation to use
-  # "ben-splat-env" for COLMAP steps, "mast3r-slam" for MASt3R steps
-  python_env_colmap: "ben-splat-env"  # For steps 1, 2
-  python_env_mslam: "mast3r-slam"     # For steps 3, 4, 5
   # Enable step-by-step confirmation (useful for debugging)
   interactive: false
   # Skip completed steps if outputs exist
@@ -48,7 +44,7 @@ mast3r_slam:
   config: "/home/ben/encode/code/MASt3R-SLAM/config/base.yaml" #"config/base.yaml"
   # Enable visualization (requires manual Ctrl+C to continue pipeline after SLAM completes)
   # Set to false for automated runs. TODO: Run visualization in separate process to avoid blocking.
-  enable_visualization: true
+  enable_visualization: false
   # Additional arguments to pass to MASt3R-SLAM (optional)
   # Example: ["--single_thread"]
   extra_args: []

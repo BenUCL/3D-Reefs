@@ -29,7 +29,7 @@ def get_clean_colmap_env():
     """Get environment for COLMAP with snap/conda interference removed (like bash script does)."""
     env = os.environ.copy()
     
-    # Remove the same variables the bash script unsets
+    # Remove snap variables
     vars_to_remove = [
         'XDG_DATA_DIRS',
         'XDG_CONFIG_DIRS', 
@@ -41,6 +41,17 @@ def get_clean_colmap_env():
     
     for var in vars_to_remove:
         env.pop(var, None)
+    
+    # Remove conda library paths that cause GLIBC_PRIVATE errors with system COLMAP
+    # Keep CONDA_PREFIX but remove LD_LIBRARY_PATH to avoid library conflicts
+    if 'LD_LIBRARY_PATH' in env:
+        # Filter out conda paths from LD_LIBRARY_PATH
+        ld_paths = env['LD_LIBRARY_PATH'].split(':')
+        filtered_paths = [p for p in ld_paths if 'conda' not in p.lower() and 'miniconda' not in p.lower()]
+        if filtered_paths:
+            env['LD_LIBRARY_PATH'] = ':'.join(filtered_paths)
+        else:
+            env.pop('LD_LIBRARY_PATH', None)
     
     return env
 

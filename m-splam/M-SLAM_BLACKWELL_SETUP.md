@@ -326,6 +326,17 @@ pip install numpy==1.26.4
 
 **Note:** opencv-python will complain about numpy>=2 requirement, but it works fine with 1.26.4.
 
+**Step 6.3.1: Install additional packages for pipeline (OPTIONAL - only if using m-splam pipeline)**
+```bash
+# Install packages needed for the automated pipeline
+pip install pyyaml pillow
+```
+
+**Note:** The pipeline also requires system COLMAP (NOT conda COLMAP):
+```bash
+sudo apt-get update && sudo apt-get install colmap
+```
+
 **Step 6.4: Verify curope has sm_120 compiled**
 ```bash
 # Check that sm_120 kernels are present in the compiled binary

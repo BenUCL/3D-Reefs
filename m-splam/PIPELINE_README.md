@@ -2,24 +2,46 @@
 
 This directory contains an automated pipeline that orchestrates the complete workflow from raw images to trained Gaussian splats.
 
+## Environment Setup
+
+**CRITICAL:** This pipeline requires:
+
+1. **System COLMAP** (installed via apt, NOT conda)
+   ```bash
+   sudo apt-get update && sudo apt-get install colmap
+   ```
+
+2. **One conda environment** with MASt3R-SLAM + Python packages
+   - Use `mast3r-slam-blackwell` (or your MASt3R-SLAM environment name)
+   - See `M-SLAM_BLACKWELL_SETUP.md` for complete setup guide
+   - Also needs: `pycolmap`, `open3d`, `numpy`, `pyyaml`, `pillow`
+
+**Why system COLMAP?**
+- Conda COLMAP 3.13.0 has bundle adjustment bugs
+- System COLMAP 3.9.1 (via apt) works reliably
+- Pipeline automatically filters conda library paths to prevent conflicts
+
 ## Quick Start
 
 ```bash
-# 1. Create your config from template
+# 1. Ensure system COLMAP is installed (see above)
+
+# 2. Create your config from template
 cp pipeline_config_template.yaml my_config.yaml
 
-# 2. Edit my_config.yaml (set run_name, images_path, etc.)
+# 3. Edit my_config.yaml (set run_name, images_path, etc.)
 
-# 3. Run the full pipeline
-cd /home/bwilliams/encode/code/dev
-conda activate mast3r-slam
+# 4. Run the full pipeline
+cd /home/ben/encode/code/3D-Reefs/m-splam
+conda activate mast3r-slam-blackwell
 python run_pipeline.py --config my_config.yaml
 ```
 
 ### Steps to perform before running this pipeline
 - Downsample all images (raw gopro images are huge 4mb files). use `downsample_img.sh`
 - If using stereo cameras, they may have a tiny difference in pixel count (e.g., I previously found: 1600x1399 vs 1600x1397). Use `crop_images_uniform.py` to crop to the smaller of the sizes. This will shave the excess pixels off the larger images.
-- Make sure all images are PNG's, use `/home/bwilliams/encode/code/dev/jpeg2png.py`. TODO: A [PR](https://github.com/rmurai0610/MASt3R-SLAM/pull/19) on the m-slam repo supports pngs or jpgs. although consider if this could cause memory issues.
+- Make sure all images are PNG's, use `jpeg2png.py`. TODO: A [PR](https://github.com/rmurai0610/MASt3R-SLAM/pull/19) on the m-slam repo supports pngs or jpgs. although consider if this could cause memory issues.
+
 
 ## Pipeline Steps
 
@@ -291,8 +313,11 @@ tail -f /intermediate_data/{run_name}/terminal_output.log
 **Problem**: COLMAP calibration has low registration (<25%)  
 **Solution**: Try increasing `num_images` or verifying image quality (blur, exposure, sufficient overlap). Could give it images from elsewhere in the sequence.
 
+**Problem**: COLMAP bundle adjustment crashes with SQLite or SIGABRT errors  
+**Solution**: Make sure you're using **system COLMAP** (via apt), not conda COLMAP. Check `which colmap` shows `/usr/bin/colmap`. Conda COLMAP 3.13.0 has known bugs.
+
 **Problem**: MASt3R-SLAM reconstruction looks wrong  
-**Solution**: Check intrinsics.yaml values are reasonable. Try different COLMAP camera_model (OPENCV vs OPENCV_FISHEYE). Visualize outputs manually (see notes.txt for manual commands)
+**Solution**: Check intrinsics.yaml values are reasonable. Try different COLMAP camera_model (OPENCV vs OPENCV_FISHEYE). Visualize outputs manually.
 
 **Problem**: Splatting training diverges or produces artifacts  
 **Solution**: Verify pose accuracy (check images.txt), try different initialization (adjust sample_percentage), or run with fewer iterations first
