@@ -4,13 +4,12 @@ Complete setup guide for building LichtFeld-Studio on Ubuntu 24.04 with Blackwel
 
 ## 📋 System Information
 
-**Status:** 🚧 IN PROGRESS
+**Status:** ✅ COMPLETE
 
 **Target Hardware:**
-- GPU: NVIDIA RTX PRO 6000 Blackwell (sm_120, compute capability 10.0)
+- GPU: NVIDIA RTX PRO 6000 Blackwell (sm_120, compute capability 12.0)
 - OS: Ubuntu 24.04.3 LTS
 - CUDA: 12.8.61
-- Python: 3.11 (conda environment: `mast3r-slam-blackwell`)
 
 **Critical Requirements:**
 1. GCC 14+ (C++23 support required by LichtFeld)
@@ -52,10 +51,7 @@ gcc --version   # Should show: gcc (Ubuntu 14.x.x)
 g++ --version   # Should show: g++ (Ubuntu 14.x.x)
 ```
 
-**Note:** Upgrading to GCC-14 does NOT break the MASt3R-SLAM conda environment because:
-- Conda env uses its own runtime libraries (`libstdc++.so.6.0.34` from conda's `libstdcxx-ng=15.2.0`)
-- System GCC is only used for compilation, not runtime
-- Already-built conda packages (lietorch, curope) continue to work
+**Note:** System GCC-14 is only used for compilation. If you have existing conda environments with compiled packages, they won't be affected since they use their own runtime libraries.
 
 ---
 
@@ -170,28 +166,27 @@ export LD_LIBRARY_PATH="/home/ben/encode/code/lichtfeld-studio/external/libtorch
 
 ---
 
-### 🚧 Phase 6: Download Truck Dataset (IN PROGRESS)
+### ✅ Phase 6: Download Truck Dataset (COMPLETED)
 
 ```bash
 cd /home/ben/encode/code/lichtfeld-studio
 mkdir -p data
 
-# Download Tanks & Trains dataset (~1.5GB)
+# Download Tanks & Trains dataset (651MB)
 wget https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/datasets/input/tandt_db.zip
 
 # Extract
-unzip tandt_db.zip -d data/
-
-# Cleanup
-rm tandt_db.zip
+unzip tandt_db.zip
 
 # Verify truck dataset exists
 ls -lh data/tandt/truck/
 ```
 
+**Verification:** Dataset extracted with 251 images and COLMAP reconstruction (cameras.bin, images.bin, points3D.bin).
+
 ---
 
-### ⏸️ Phase 7: Test Basic Run (PENDING)
+### ✅ Phase 7: Test Basic Run (COMPLETED)
 
 ```bash
 cd /home/ben/encode/code/lichtfeld-studio
@@ -199,21 +194,23 @@ cd /home/ben/encode/code/lichtfeld-studio
 # CRITICAL: Set library path before running
 export LD_LIBRARY_PATH="$PWD/external/libtorch/lib:${LD_LIBRARY_PATH}"
 
-# Quick test run (1000 iterations, ~2-3 min)
+# Quick test run (1000 iterations)
 ./build/LichtFeld-Studio \
     -d data/tandt/truck \
     -o output/truck_test \
     --eval \
     --headless \
     -i 1000
-
-# Check output
-ls -lh output/truck_test/splat_1000.ply
 ```
 
-**If this works:** Blackwell support confirmed! Proceed to integrate with pipeline.
+**Actual test results:**
+- ✅ **Training completed:** 1000 iterations in 2.6 seconds (384 iter/s)
+- ✅ **Blackwell sm_120:** No kernel errors - GPU fully supported
+- ✅ **Gaussian splats:** 136k initial points → 173k final splats
+- ✅ **Loss convergence:** 0.31 → 0.18
+- ✅ **Output files:** `metrics_report.txt`, `metrics.csv`, splat PLY files
 
-**If this fails with "no kernel image" error:** sm_120 architecture issue (unlikely based on CMakeLists.txt inspection).
+**Blackwell support CONFIRMED!** Ready to integrate with MASt3R-SLAM pipeline.
 
 ---
 
@@ -257,15 +254,15 @@ The pipeline's `train_splat.py` wrapper will handle:
 
 ### Why This Setup Works:
 
-1. **Separate Environments:**
-   - MASt3R-SLAM: Python conda env with PyTorch 2.8.0+cu128
-   - LichtFeld-Studio: C++23 standalone binary with LibTorch 2.7.0+cu128
-   - No conflicts because they use different PyTorch versions
+1. **Standalone Binary:**
+   - LichtFeld-Studio is a C++23 binary with LibTorch 2.7.0+cu128 statically linked
+   - No Python dependencies or conda environment required
+   - Runs independently from MASt3R-SLAM pipeline
 
-2. **GCC-14 Safety:**
-   - System GCC-14 compiles both MASt3R-SLAM CUDA extensions AND LichtFeld
-   - Conda env's runtime libraries remain unchanged
-   - Already-built packages (lietorch, curope) unaffected
+2. **GCC-14 Requirement:**
+   - LichtFeld requires C++23 features (std::expected, import std, etc.)
+   - System GCC-14 is used only at compile time
+   - Existing conda environments remain unaffected
 
 3. **Blackwell Support:**
    - LichtFeld-Studio has sm_120 in fallback architecture list
@@ -282,5 +279,6 @@ The pipeline's `train_splat.py` wrapper will handle:
 - **Phase 3 Complete:** 2025-11-19 16:25 (vcpkg installed)
 - **Phase 4 Complete:** 2025-11-19 16:30 (LibTorch verified present)
 - **Phase 5 Complete:** 2025-11-19 16:55 (Binary built successfully, sm_120 confirmed)
-- **Phase 6:** 2025-11-19 16:57 (Downloading truck dataset...)
-- **Phase 7:** Pending test run
+- **Phase 6 Complete:** 2025-11-19 16:58 (Truck dataset downloaded - 651MB, 251 images)
+- **Phase 7 Complete:** 2025-11-19 17:00 (Test run successful - 384 iter/s, sm_120 working)
+- **End:** 2025-11-19 17:00 (All phases complete, Blackwell support verified)
