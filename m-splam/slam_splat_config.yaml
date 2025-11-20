@@ -2,7 +2,7 @@
 # Copy this file and customize for each run
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "new_machine_test"
+run_name: "mars_johns_1"
 
 # Pipeline Control
 pipeline:
