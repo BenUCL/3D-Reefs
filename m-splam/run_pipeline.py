@@ -608,6 +608,23 @@ class PipelineRunner:
         cmd.extend(extra_args)
         
         result = self.run_command(cmd, step_name)
+        
+        # Verify that training actually produced output files
+        if result:
+            expected_ply = output_dir / f'splat_{iterations}.ply'
+            if not expected_ply.exists():
+                # Check for any .ply files in output
+                ply_files = list(output_dir.glob('*.ply'))
+                if not ply_files:
+                    self.log(f"✗ Training command succeeded but no .ply files were generated!")
+                    self.log(f"   Expected: {expected_ply}")
+                    self.log(f"   Check {output_dir}/run.log for errors")
+                    result = False
+                else:
+                    self.log(f"✓ Generated {len(ply_files)} splat file(s)")
+            else:
+                self.log(f"✓ Generated final splat: {expected_ply.name}")
+        
         step_duration = time.time() - step_start
         self.log_timing(step_num, step_name, step_duration, skipped=False)
         return result

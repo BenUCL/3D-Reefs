@@ -3,8 +3,8 @@ from PIL import Image
 import glob, os
 
 # Configuration
-INPUT_DIR = "/home/ben/encode/data/mars_johns/left_downsampled"
-OUTPUT_DIR = "/home/ben/encode/data/mars_johns/left_downsampled_png"
+INPUT_DIR = "/home/ben/encode/data/mars_johns/left"
+OUTPUT_DIR = "/home/ben/encode/data/mars_johns/left_png"
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)

@@ -14,7 +14,7 @@ pipeline:
 # Paths 
 paths:
   # Raw input images (must be PNG)
-  images_path: "/home/ben/encode/data/soneva/ootbm/reef_soneva"
+  images_path: "/home/ben/encode/data/mars_johns/left_downsampled_png"
   # Directory where intermediate data and outputs will be stored
   intermediate_data_root: "/home/ben/encode/data/intermediate_data"
   # MASt3R-SLAM installation directory

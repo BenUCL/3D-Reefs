@@ -111,6 +111,19 @@ def run_lichtfeld(cmd_list, out_dir: Path):
     all_lines = []
     progress = []
 
+    # Set up environment to use LichtFeld's standalone libtorch
+    # This prevents conda environments from interfering with library loading
+    env = os.environ.copy()
+    lichtfeld_bin = Path(cmd_list[0])
+    if lichtfeld_bin.exists():
+        # Check for external/libtorch relative to the binary
+        lichtfeld_root = lichtfeld_bin.parent.parent
+        libtorch_path = lichtfeld_root / 'external' / 'libtorch' / 'lib'
+        if libtorch_path.exists():
+            # Prepend to LD_LIBRARY_PATH so it takes precedence
+            current_ld_path = env.get('LD_LIBRARY_PATH', '')
+            env['LD_LIBRARY_PATH'] = f"{libtorch_path}:{current_ld_path}" if current_ld_path else str(libtorch_path)
+
     # Start process with unbuffered output
     with open(log_path, 'wb', buffering=0) as logfile:
         proc = subprocess.Popen(
@@ -118,7 +131,8 @@ def run_lichtfeld(cmd_list, out_dir: Path):
             stdout=subprocess.PIPE, 
             stderr=subprocess.STDOUT,
             bufsize=1,  # line buffered
-            universal_newlines=False
+            universal_newlines=False,
+            env=env
         )
 
         assert proc.stdout is not None
@@ -165,8 +179,8 @@ def run_lichtfeld(cmd_list, out_dir: Path):
             else:
                 buffer += chunk
         
-        proc.wait()
-    return {'all_lines': all_lines, 'progress': progress, 'log': str(log_path)}
+        return_code = proc.wait()
+    return {'all_lines': all_lines, 'progress': progress, 'log': str(log_path), 'return_code': return_code}
 
 
 def write_report(out_dir: Path, cmd_str: str, meta: dict, run_result: dict):
@@ -240,6 +254,11 @@ def main():
     report_path = write_report(output_dir, cmd_str, meta, run_result)
     print(f"Report written to: {report_path}")
     print(f"Full log: {run_result['log']}")
+    
+    # Exit with the same code as LichtFeld
+    if run_result['return_code'] != 0:
+        print(f"\nERROR: LichtFeld-Studio exited with code {run_result['return_code']}")
+        sys.exit(run_result['return_code'])
 
 
 if __name__ == '__main__':
