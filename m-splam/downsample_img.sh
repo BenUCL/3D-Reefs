@@ -2,8 +2,8 @@
 # run: 
 # /home/bwilliams/encode/code/dev/downsample_img.sh
 
-SOURCE_DIR="/home/bwilliams/encode/data/sweet_corals/subset_stereo/raw"
-OUTPUT_DIR="/home/bwilliams/encode/data/sweet_corals/subset_stereo/raw_downsampled"
+SOURCE_DIR="/home/ben/encode/data/mars_johns/left"
+OUTPUT_DIR="/home/ben/encode/data/mars_johns/left_downsampled"
 
 # Check if ImageMagick is installed
 if ! command -v convert &> /dev/null; then
