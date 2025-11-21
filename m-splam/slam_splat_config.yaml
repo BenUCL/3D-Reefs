@@ -2,7 +2,7 @@
 # Copy this file and customize for each run
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "mars_johns_1"
+run_name: "MA_soneva"
 
 # Pipeline Control
 pipeline:
@@ -56,7 +56,19 @@ pose_conversion:
   # Camera ID (null for auto-detect from cameras.txt)
   camera_id: null
 
-# Step 5: PLY to COLMAP points3D (mslam_ply_to_points3d.py)
+# Step 5b (Optional): Generate COLMAP files with original high-res image names
+# This creates images_original.txt/bin that reference full-resolution source images
+# instead of the downsampled keyframes used by MASt3R-SLAM
+generate_original_colmap:
+  # Enable this step (set to true to generate original images COLMAP files)
+  enabled: false
+  # Path to directory containing original high-resolution images
+  # Example: "/home/ben/encode/data/mars_johns/left"
+  original_images_path: "/home/ben/encode/data/mars_johns/left"
+  # Image file extension (e.g., .JPG, .jpg, .png)
+  extension: ".JPG"
+
+# Step 6: PLY to COLMAP points3D (mslam_ply_to_points3d.py)
 ply_conversion:
   # Percentage of points to sample (10% = ~500K-1M points)
   # Lower = faster, less memory. Higher = more detail
@@ -67,10 +79,10 @@ gaussian_splatting:
   # Run in headless mode (no GUI)
   headless: true
   # Number of training iterations
-  iterations: 25000
+  iterations: 20000
   # Maximum splat count after densification
   max_cap: 1000000
   # Additional LichtFeld-Studio arguments
   # Example: ["--random", "--save-every", "10000"]
-  extra_args: []
+  extra_args: ["--gut"] ############################## BEWARE I HAVE GUT here
 

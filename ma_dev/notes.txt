@@ -28,3 +28,53 @@ pre-commit install
 
 # Extra installs
 pip install open3d numpy
+
+
+
+# OR:
+pip install -e ".[colmap]"
+
+
+
+
+Follow the blog up to and including:
+
+“Initialization: Setting Up Your Development Environment”
+
+Do the sub-sections:
+“Creating a Clean Anaconda Environment”, “Installing PyTorch with CUDA Support”, “Installing Libraries: MapAnything Framework”, “Installing Other Libraries: Open3D + Numpy” (Open3D isn’t required later, but it won’t hurt).
+
+“Configuring Memory Management and Core Imports”
+
+Keep the PYTORCH_CUDA_ALLOC_CONF = "expandable_segments:True" bit.
+
+“Step 1: Device Detection and Hardware Verification”
+
+“Step 2: Loading the MapAnything Model from HuggingFace Hub”
+
+“Step 3: Image Loading and Automatic Preprocessing”
+
+“Step 4: Running Inference with Optimized Parameters”
+
+STOP immediately after the code block that assigns:
+
+predictions = model.infer(...)
+
+
+You may read the next single line that begins “Access results for each view — Complete list…”, but do not follow any of the per-view extraction that comes after it.
+
+Do NOT follow these blog sections (we switch before them):
+
+“Step 6: Extracting per view 2D / 3Delements” (yes, it’s labelled “Step 6” again in the post)
+
+“Step 6: Decoding Prediction Tensors and Understanding Data Types”
+
+“Step 7: Extracting Valid 3D Points with Mask Filtering”
+
+“Step 8: Mapping RGB Colors from Source Images”
+
+“Step 9: Merging Multi-View Predictions into Complete Reconstruction”
+
+“Step 10: Exporting to Standard 3D Formats”
+
+Those are the parts where the author hand-codes point extraction/merging/export. Skip all of that because we’ll export straight to COLMAP using MapAnything’s built-in scripts.
