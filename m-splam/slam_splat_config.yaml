@@ -2,7 +2,7 @@
 # Copy this file and customize for each run
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "MA_soneva"
+run_name: "highres_m-slam_MarsJohnS"
 
 # Pipeline Control
 pipeline:
@@ -13,7 +13,9 @@ pipeline:
 
 # Paths 
 paths:
-  # Raw input images (must be PNG)
+  # Raw images (high res, no modifications)
+  original_images_path: "/home/ben/encode/data/mars_johns/left"
+  # Downsampled images directory (used for SLAM))
   images_path: "/home/ben/encode/data/mars_johns/left_downsampled_png"
   # Directory where intermediate data and outputs will be stored
   intermediate_data_root: "/home/ben/encode/data/intermediate_data"
@@ -56,15 +58,13 @@ pose_conversion:
   # Camera ID (null for auto-detect from cameras.txt)
   camera_id: null
 
-# Step 5b (Optional): Generate COLMAP files with original high-res image names
-# This creates images_original.txt/bin that reference full-resolution source images
+# Step 5b (Optional): Get pose files that use the original high-res image names
+# This creates images_highres.txt/bin that reference full-resolution source images
 # instead of the downsampled keyframes used by MASt3R-SLAM
-generate_original_colmap:
-  # Enable this step (set to true to generate original images COLMAP files)
-  enabled: false
-  # Path to directory containing original high-resolution images
-  # Example: "/home/ben/encode/data/mars_johns/left"
-  original_images_path: "/home/ben/encode/data/mars_johns/left"
+# TODO: I don't the long name 'generate_highres_colmap' 
+generate_highres_colmap:
+  # Enable this step (set to true to get high-res images COLMAP files)
+  enabled: true
   # Image file extension (e.g., .JPG, .jpg, .png)
   extension: ".JPG"
 

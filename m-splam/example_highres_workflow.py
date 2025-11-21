@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example: How to use the original high-res images for Gaussian Splatting
+Example: How to use the high-res images for Gaussian Splatting
 
 This example shows the workflow for using full-resolution images with poses
 estimated from downsampled images by MASt3R-SLAM.
@@ -12,8 +12,9 @@ estimated from downsampled images by MASt3R-SLAM.
 
 # Edit your config file (e.g., slam_splat_config.yaml):
 """
-generate_original_colmap:
+generate_highres_colmap:
   enabled: true
+paths:
   original_images_path: "/home/ben/encode/data/mars_johns/left"
   extension: ".JPG"
 """
@@ -23,7 +24,7 @@ generate_original_colmap:
 
 # This will create:
 # - /intermediate_data/mars_johns_1/for_splat/sparse/0/images.txt (downsampled keyframes)
-# - /intermediate_data/mars_johns_1/for_splat/sparse/0/images_original.txt (high-res names)
+# - /intermediate_data/mars_johns_1/for_splat/sparse/0/images_highres.txt (high-res names)
 # - /intermediate_data/mars_johns_1/mslam_logs/keyframe_mapping.txt (timestamp→frame_id)
 # - /intermediate_data/mars_johns_1/mslam_logs/keyframe_mapping_full.txt (complete mapping)
 
@@ -118,7 +119,7 @@ print(f"Created high-res cameras: {cameras_highres_txt}")
 
 # Now you have:
 # - images_highres/ with full-resolution images
-# - images_original.txt/bin with correct filenames
+# - images_highres.txt/bin with correct filenames
 # - cameras_highres.txt with correct dimensions and intrinsics
 
 # Manually run LichtFeld-Studio:
@@ -149,11 +150,11 @@ highres_splat_dir = Path("/home/ben/encode/data/intermediate_data/mars_johns_1/f
 
 # Copy COLMAP files
 shutil.copy2(
-    "/home/ben/encode/data/intermediate_data/mars_johns_1/for_splat/sparse/0/images_original.txt",
+    "/home/ben/encode/data/intermediate_data/mars_johns_1/for_splat/sparse/0/images_highres.txt",
     highres_splat_dir / "sparse" / "0" / "images.txt"
 )
 shutil.copy2(
-    "/home/ben/encode/data/intermediate_data/mars_johns_1/for_splat/sparse/0/images_original.bin",
+    "/home/ben/encode/data/intermediate_data/mars_johns_1/for_splat/sparse/0/images_highres.bin",
     highres_splat_dir / "sparse" / "0" / "images.bin"
 )
 shutil.copy2(

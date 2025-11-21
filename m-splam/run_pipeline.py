@@ -394,6 +394,21 @@ class PipelineRunner:
         else:
             self.log(f"⚠️  Keyframes not found: {src_keyframes}")
         
+        # Move keyframe_mapping.txt (created by modified evaluate.py)
+        src_mapping = src_logs / 'keyframes' / 'keyframe_mapping.txt'
+        target_mapping = target_mslam / 'keyframe_mapping.txt'
+        
+        if src_mapping.exists():
+            if target_mapping.exists():
+                target_mapping.unlink()
+            shutil.move(str(src_mapping), str(target_mapping))
+            self.log(f"✓ Moved keyframe mapping: {src_mapping} → {target_mapping}")
+            moved_any = True
+        elif target_mapping.exists():
+            self.log(f"✓ Keyframe mapping already in target: {target_mapping}")
+        else:
+            self.log(f"⚠️  Keyframe mapping not found: {src_mapping} (may need to re-run MASt3R-SLAM)")
+        
         # Move TUM poses and PLY (using detected dataset name)
         for ext in ['.txt', '.ply']:
             src_file = src_logs / f'{dataset_name}{ext}'
@@ -481,53 +496,55 @@ class PipelineRunner:
         self.log_timing(step_num, step_name, step_duration, skipped=False)
         return result
     
-    def step_5b_generate_original_images_colmap(self):
-        """Step 5b (Optional): Generate COLMAP files with original high-res image names.
+    def step_5b_get_highres_images_colmap(self):
+        """Step 5b (Optional): Get COLMAP files with high-res image names.
         
-        This creates alternative images_original.txt/bin files that reference the original
-        high-resolution images instead of downsampled keyframes. Useful for running
+        This creates alternative images_highres.txt/bin files that reference the high-resolution
+        source images instead of downsampled keyframes. Useful for running
         Gaussian splatting on full-resolution images.
         
         Outputs:
-            - {run_dir}/for_splat/sparse/0/images_original.txt - COLMAP poses with original filenames
-            - {run_dir}/for_splat/sparse/0/images_original.bin - Binary version
+            - {run_dir}/for_splat/sparse/0/images_highres.txt - COLMAP poses with highres filenames
+            - {run_dir}/for_splat/sparse/0/images_highres.bin - Binary version
             - {run_dir}/mslam_logs/keyframe_mapping_full.txt - Complete timestamp→filename mapping
         """
-        step_name = "5b. Generate Original Images COLMAP Files (Optional)"
+        step_name = "5b. Get High-Res Images COLMAP Files (Optional)"
         step_num = "5b"
         self.log(f"\n{'#'*70}")
         self.log(f"# {step_name}")
         self.log(f"{'#'*70}")
         
         # Check if this step is enabled in config
-        cfg = self.config.get('generate_original_colmap', {})
+        cfg = self.config.get('generate_highres_colmap', {})
         if not cfg.get('enabled', False):
-            self.log(f"⏭️  Skipping - not enabled in config (set generate_original_colmap.enabled: true)")
-            return True
+            self.log(f"⏭️  Step disabled in config (set generate_highres_colmap.enabled: true to enable)")
+            return True  # Not an error, just disabled
         
         step_start = time.time()
         
         # Check if already done
-        output_txt = self.run_dir / 'for_splat' / 'sparse' / '0' / 'images_original.txt'
+        output_txt = self.run_dir / 'for_splat' / 'sparse' / '0' / 'images_highres.txt'
         if self.config['pipeline'].get('skip_existing', True) and output_txt.exists():
             self.log(f"⏭️  Skipping - output exists: {output_txt}")
             self.log_timing(step_num, step_name, 0, skipped=True)
             return True
         
-        # Validate required config
-        if 'original_images_path' not in cfg:
-            self.log(f"⚠️  Warning: generate_original_colmap.original_images_path not set in config")
-            self.log(f"⏭️  Skipping step 5b")
-            return True
+        # Get original_images_path from paths section
+        highres_images_path = self.paths.get('original_images_path')
+        if not highres_images_path:
+            self.log(f"❌ ERROR: paths.original_images_path not set in config")
+            self.log(f"   Add 'original_images_path: /path/to/highres/images' under 'paths:' section")
+            return False  # This is an error if step is enabled
         
+        extension = cfg.get('extension', '.JPG')
         mslam_logs = self.run_dir / 'mslam_logs'
         
         cmd = [
             'python',
-            str(Path(__file__).parent / 'generate_original_images_colmap.py'),
+            str(Path(__file__).parent / 'get_highres_images_colmap.py'),
             '--dataset', self.run_name,
-            '--images_path', cfg['original_images_path'],
-            '--extension', cfg.get('extension', '.JPG'),
+            '--images_path', highres_images_path,
+            '--extension', extension,
             '--mslam_logs_dir', str(mslam_logs)
         ]
         
@@ -692,15 +709,21 @@ class PipelineRunner:
             (3, "MASt3R-SLAM", self.step_3_mast3r_slam),
             (4, "Move MASt3R-SLAM Outputs", self.step_4_move_mslam_outputs),
             (5, "Pose Conversion", self.step_5_pose_conversion),
-            ("5b", "Generate Original Images COLMAP", self.step_5b_generate_original_images_colmap),
+            ("5b", "Generate High-Res Images COLMAP", self.step_5b_get_highres_images_colmap),
             (6, "PLY Conversion", self.step_6_ply_conversion),
             (7, "Gaussian Splatting", self.step_7_gaussian_splatting)
         ]
         
         if only is not None:
-            steps = [(num, name, func) for num, name, func in steps if num == only]
+            # Convert to int if it's a number, keep as string otherwise (e.g., "5b")
+            try:
+                only_num = int(only)
+                steps = [(num, name, func) for num, name, func in steps if num == only_num]
+            except ValueError:
+                # String like "5b"
+                steps = [(num, name, func) for num, name, func in steps if str(num) == only]
         else:
-            steps = [(num, name, func) for num, name, func in steps if num >= start_from]
+            steps = [(num, name, func) for num, name, func in steps if isinstance(num, int) and num >= start_from]
         
         self.log(f"\n{'='*70}")
         self.log(f"PIPELINE EXECUTION PLAN")
@@ -777,10 +800,9 @@ Examples:
     )
     parser.add_argument(
         '--only',
-        type=int,
+        type=str,
         default=None,
-        choices=range(1, 8),
-        help='Run only a specific step (1-7)'
+        help='Run only a specific step (1-7 or 5b)'
     )
     
     # Step 7 (Gaussian Splatting) parameter overrides

@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
-generate_original_images_colmap.py
+generate_highres_images_colmap.py
 
-Generate COLMAP images_original.txt/bin files that reference the original high-resolution
-image filenames instead of the downsampled timestamp-based keyframe names.
+Generate COLMAP images_highres.txt/bin files that reference the high-resolution
+source image filenames instead of the downsampled timestamp-based keyframe names.
 
 This enables using full-resolution images for Gaussian splatting while keeping the same
 camera poses estimated by MASt3R-SLAM on downsampled images.
 
 Input:
   - keyframe_mapping.txt: Maps timestamp → frame_id (from MASt3R-SLAM)
-  - Original images directory: Contains high-res source images
+  - High-res images directory: Contains full-resolution source images
   - images.txt: COLMAP poses for downsampled keyframes
 
 Output:
-  - images_original.txt: COLMAP format with original filenames
-  - images_original.bin: Binary version of above
-  - keyframe_mapping_full.txt: Extended mapping with original filenames
+  - images_highres.txt: COLMAP format with high-res filenames
+  - images_highres.bin: Binary version of above
+  - keyframe_mapping_full.txt: Extended mapping with high-res filenames
 
 Usage:
-  python generate_original_images_colmap.py --dataset mars_johns_1 --images_path /path/to/original/images
-  python generate_original_images_colmap.py --dataset mars_johns_1 --images_path /path/to/original/images --extension .jpg
+  python generate_highres_images_colmap.py --dataset mars_johns_1 --images_path /path/to/highres/images
+  python generate_highres_images_colmap.py --dataset mars_johns_1 --images_path /path/to/highres/images --extension .jpg
 """
 
 import argparse
