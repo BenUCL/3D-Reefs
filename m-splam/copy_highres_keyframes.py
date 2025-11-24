@@ -10,6 +10,8 @@ import shutil
 from pathlib import Path
 from natsort import natsorted
 
+
+# TODO: integrate into pipeline so doesn't have to be run manually with hard coded paths
 # ================= CONFIGURATION =================
 KEYFRAME_MAPPING = "/home/ben/encode/data/intermediate_data/highres_Mars/mslam_logs/keyframe_mapping.txt"
 HIGHRES_IMAGES_DIR = "/home/ben/encode/data/mars_johns/left"
