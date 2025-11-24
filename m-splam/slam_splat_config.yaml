@@ -70,16 +70,6 @@ pose_conversion:
   # Camera ID (null for auto-detect from cameras.txt)
   camera_id: null
 
-# Step 5b (Optional): Get pose files that use the original high-res image names
-# This creates images_highres.txt/bin that reference full-resolution source images
-# instead of the downsampled keyframes used by MASt3R-SLAM
-# TODO: I don't the long name 'generate_highres_colmap' 
-generate_highres_colmap:
-  # Enable this step (set to true to get high-res images COLMAP files)
-  enabled: true
-  # Image file extension (e.g., .JPG, .jpg, .png)
-  extension: ".JPG"
-
 # Step 6: PLY to COLMAP points3D (mslam_ply_to_points3d.py)
 ply_conversion:
   # Percentage of points to sample (10% = ~500K-1M points)

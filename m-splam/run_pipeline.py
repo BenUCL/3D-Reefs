@@ -543,58 +543,132 @@ class PipelineRunner:
         result = self.run_command(cmd, step_name)
         step_duration = time.time() - step_start
         self.log_timing(step_num, step_name, step_duration, skipped=False)
+        
+        if not result:
+            return False
+        
+        # Auto-run steps 5b and 5c if use_highres_for_splatting is enabled
+        use_highres = self.config.get('intrinsics_conversion', {}).get('use_highres_for_splatting', False)
+        if use_highres:
+            self.log(f"\n{'='*70}")
+            self.log(f"📸 High-res mode enabled - running additional steps...")
+            self.log(f"{'='*70}\n")
+            
+            # Run step 5b
+            if not self.step_5b_update_highres_poses():
+                return False
+            
+            # Run step 5c
+            if not self.step_5c_copy_highres_images():
+                return False
+        
         return result
     
-    def step_5b_get_highres_images_colmap(self):
-        """Step 5b (Optional): Get COLMAP files with high-res image names.
+    def step_5b_update_highres_poses(self):
+        """Step 5b (Auto-runs if use_highres_for_splatting=true): Update COLMAP poses with high-res filenames.
         
-        This creates alternative images_highres.txt/bin files that reference the high-resolution
-        source images instead of downsampled keyframes. Useful for running
-        Gaussian splatting on full-resolution images.
+        This updates images.txt/bin to reference the high-resolution source images
+        instead of downsampled keyframes. Original files are backed up as images_lowres.txt/bin.
         
         Outputs:
-            - {run_dir}/for_splat/sparse/0/images_highres.txt - COLMAP poses with highres filenames
-            - {run_dir}/for_splat/sparse/0/images_highres.bin - Binary version
+            - {run_dir}/for_splat/sparse/0/images_lowres.txt/bin - Backup of original
+            - {run_dir}/for_splat/sparse/0/images.txt/bin - Updated with highres filenames
             - {run_dir}/mslam_logs/keyframe_mapping_full.txt - Complete timestamp→filename mapping
         """
-        step_name = "5b. Get High-Res Images COLMAP Files (Optional)"
+        step_name = "5b. Update COLMAP Poses with High-Res Filenames"
         step_num = "5b"
         self.log(f"\n{'#'*70}")
         self.log(f"# {step_name}")
         self.log(f"{'#'*70}")
         
-        # Check if this step is enabled in config
-        cfg = self.config.get('generate_highres_colmap', {})
-        if not cfg.get('enabled', False):
-            self.log(f"⏭️  Step disabled in config (set generate_highres_colmap.enabled: true to enable)")
-            return True  # Not an error, just disabled
+        # Check if this step should run (based on use_highres_for_splatting flag)
+        use_highres = self.config.get('intrinsics_conversion', {}).get('use_highres_for_splatting', False)
+        if not use_highres:
+            self.log(f"⏭️  Step skipped (use_highres_for_splatting=false)")
+            return True  # Not an error, just not needed
         
         step_start = time.time()
         
-        # Check if already done
-        output_txt = self.run_dir / 'for_splat' / 'sparse' / '0' / 'images_highres.txt'
-        if self.config['pipeline'].get('skip_existing', True) and output_txt.exists():
-            self.log(f"⏭️  Skipping - output exists: {output_txt}")
+        # Check if already done (check for backup file as indicator)
+        backup_txt = self.run_dir / 'for_splat' / 'sparse' / '0' / 'images_lowres.txt'
+        if self.config['pipeline'].get('skip_existing', True) and backup_txt.exists():
+            self.log(f"⏭️  Skipping - backup exists: {backup_txt}")
             self.log_timing(step_num, step_name, 0, skipped=True)
             return True
+        
+        mslam_logs = self.run_dir / 'mslam_logs'
+        
+        cmd = [
+            'python',
+            str(Path(__file__).parent / 'get_highres_poses.py'),
+            '--dataset', self.run_name,
+            '--mslam_logs_dir', str(mslam_logs)
+        ]
+        
+        result = self.run_command(cmd, step_name)
+        step_duration = time.time() - step_start
+        self.log_timing(step_num, step_name, step_duration, skipped=False)
+        return result
+    
+    def step_5c_copy_highres_images(self):
+        """Step 5c (Auto-runs if use_highres_for_splatting=true): Copy high-res keyframe images.
+        
+        This copies the high-resolution source images that correspond to the SLAM keyframes
+        to the splatting directory, preserving the original filenames.
+        
+        Outputs:
+            - {run_dir}/for_splat/images/ - High-res keyframe images with original filenames
+        """
+        step_name = "5c. Copy High-Res Keyframe Images"
+        step_num = "5c"
+        self.log(f"\n{'#'*70}")
+        self.log(f"# {step_name}")
+        self.log(f"{'#'*70}")
+        
+        # Check if this step should run (based on use_highres_for_splatting flag)
+        use_highres = self.config.get('intrinsics_conversion', {}).get('use_highres_for_splatting', False)
+        if not use_highres:
+            self.log(f"⏭️  Step skipped (use_highres_for_splatting=false)")
+            return True  # Not an error, just not needed
+        
+        step_start = time.time()
         
         # Get original_images_path from paths section
         highres_images_path = self.paths.get('original_images_path')
         if not highres_images_path:
             self.log(f"❌ ERROR: paths.original_images_path not set in config")
             self.log(f"   Add 'original_images_path: /path/to/highres/images' under 'paths:' section")
-            return False  # This is an error if step is enabled
+            return False
         
-        extension = cfg.get('extension', '.JPG')
+        # Check if already done (check if images directory has files with original names)
+        output_images_dir = self.run_dir / 'for_splat' / 'images'
+        if self.config['pipeline'].get('skip_existing', True) and output_images_dir.exists():
+            # Check if directory has any .JPG or .jpg files (indicates high-res images)
+            jpg_files = list(output_images_dir.glob('*.JPG')) + list(output_images_dir.glob('*.jpg'))
+            if jpg_files:
+                self.log(f"⏭️  Skipping - high-res images already exist in: {output_images_dir}")
+                self.log_timing(step_num, step_name, 0, skipped=True)
+                return True
+        
+        # Clean up low-res keyframe images before copying high-res ones
+        if output_images_dir.exists():
+            self.log(f"🧹 Cleaning up low-res keyframe images...")
+            png_files = list(output_images_dir.glob('*.png'))
+            if png_files:
+                self.log(f"   Removing {len(png_files)} low-res PNG files...")
+                for png_file in png_files:
+                    png_file.unlink()
+                self.log(f"   ✓ Cleanup complete")
+        
         mslam_logs = self.run_dir / 'mslam_logs'
         
         cmd = [
             'python',
-            str(Path(__file__).parent / 'get_highres_images_colmap.py'),
+            str(Path(__file__).parent / 'copy_highres_keyframes.py'),
             '--dataset', self.run_name,
-            '--images_path', highres_images_path,
-            '--extension', extension,
-            '--mslam_logs_dir', str(mslam_logs)
+            '--highres-images', highres_images_path,
+            '--output-dir', str(output_images_dir),
+            '--mslam-logs-dir', str(mslam_logs)
         ]
         
         result = self.run_command(cmd, step_name)
@@ -758,7 +832,8 @@ class PipelineRunner:
             (3, "MASt3R-SLAM", self.step_3_mast3r_slam),
             (4, "Move MASt3R-SLAM Outputs", self.step_4_move_mslam_outputs),
             (5, "Pose Conversion", self.step_5_pose_conversion),
-            ("5b", "Generate High-Res Images COLMAP", self.step_5b_get_highres_images_colmap),
+            ("5b", "Update High-Res Poses", self.step_5b_update_highres_poses),
+            ("5c", "Copy High-Res Images", self.step_5c_copy_highres_images),
             (6, "PLY Conversion", self.step_6_ply_conversion),
             (7, "Gaussian Splatting", self.step_7_gaussian_splatting)
         ]
@@ -851,7 +926,7 @@ Examples:
         '--only',
         type=str,
         default=None,
-        help='Run only a specific step (1-7 or 5b)'
+        help='Run only a specific step (1-7, 5b, or 5c)'
     )
     
     # Step 7 (Gaussian Splatting) parameter overrides

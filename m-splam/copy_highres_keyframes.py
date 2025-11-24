@@ -4,26 +4,87 @@ Copy high-resolution keyframe images based on keyframe_mapping.txt
 
 This script reads the keyframe mapping file from MASt3R-SLAM and copies
 the corresponding high-resolution images to the splatting directory.
+
+Usage:
+  python copy_highres_keyframes.py --dataset highres_Mars \
+      --highres-images /path/to/highres/images \
+      --output-dir /path/to/output
 """
 
+import argparse
 import shutil
 from pathlib import Path
-from natsort import natsorted
 
-
-# TODO: integrate into pipeline so doesn't have to be run manually with hard coded paths
-# ================= CONFIGURATION =================
-KEYFRAME_MAPPING = "/home/ben/encode/data/intermediate_data/highres_Mars/mslam_logs/keyframe_mapping.txt"
-HIGHRES_IMAGES_DIR = "/home/ben/encode/data/mars_johns/left"
-OUTPUT_DIR = "/home/ben/encode/data/intermediate_data/highres_Mars/for_splat/images"
-# =================================================
+INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Copy high-res keyframe images based on keyframe_mapping.txt",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        required=True,
+        help='Dataset name (run directory in intermediate_data)'
+    )
+    parser.add_argument(
+        '--highres-images',
+        type=str,
+        required=True,
+        help='Path to directory containing high-resolution images'
+    )
+    parser.add_argument(
+        '--output-dir',
+        type=str,
+        default=None,
+        help='Output directory (default: {dataset}/for_splat/images)'
+    )
+    parser.add_argument(
+        '--mslam-logs-dir',
+        type=str,
+        default=None,
+        help='Path to MASt3R-SLAM logs directory (default: {dataset}/mslam_logs)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Setup paths
+    run_dir = INTERMEDIATE_DATA_ROOT / args.dataset
+    
+    if args.mslam_logs_dir:
+        mslam_logs = Path(args.mslam_logs_dir)
+    else:
+        mslam_logs = run_dir / 'mslam_logs'
+    
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        output_dir = run_dir / 'for_splat' / 'images'
+    
+    keyframe_mapping = mslam_logs / 'keyframe_mapping.txt'
+    highres_images_dir = Path(args.highres_images)
+    
+    # Validate inputs
+    if not keyframe_mapping.exists():
+        raise FileNotFoundError(f"Keyframe mapping not found: {keyframe_mapping}")
+    
+    if not highres_images_dir.exists():
+        raise FileNotFoundError(f"High-res images directory not found: {highres_images_dir}")
+    
+    print(f"\n{'='*70}")
+    print(f"Copying high-resolution keyframe images")
+    print(f"{'='*70}")
+    print(f"Dataset: {args.dataset}")
+    print(f"High-res images: {highres_images_dir}")
+    print(f"Output: {output_dir}")
+    print()
+    
     # 1. Read keyframe mapping
-    print(f"Reading keyframe mapping from: {KEYFRAME_MAPPING}")
+    print("[1/3] Reading keyframe mapping...")
     keyframe_data = []
-    with open(KEYFRAME_MAPPING, 'r') as f:
+    with open(keyframe_mapping, 'r') as f:
         for line in f:
             # Skip comments and empty lines
             if line.startswith('#') or not line.strip():
@@ -42,19 +103,18 @@ def main():
                 original_filename = parts[2].strip('"')
                 keyframe_data.append((timestamp, frame_id, original_filename))
     
-    print(f"Found {len(keyframe_data)} keyframes")
+    print(f"  ✓ Found {len(keyframe_data)} keyframes")
     
     # 2. Create output directory
-    output_dir = Path(OUTPUT_DIR)
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\nOutput directory: {output_dir}")
+    print(f"\n[2/3] Output directory: {output_dir}")
     
     # 3. Copy images using the original filenames from mapping
-    print(f"\nCopying keyframe images from: {HIGHRES_IMAGES_DIR}")
+    print(f"\n[3/3] Copying keyframe images...")
     copied = 0
     for timestamp, frame_id, original_filename in keyframe_data:
         # Construct source path from original filename
-        src = Path(HIGHRES_IMAGES_DIR) / original_filename
+        src = highres_images_dir / original_filename
         
         # If file doesn't exist, try with different common extensions
         if not src.exists():
@@ -62,7 +122,7 @@ def main():
             base_name = src.stem
             tried_extensions = ['.JPG', '.jpg', '.PNG', '.png', '.JPEG', '.jpeg']
             for ext in tried_extensions:
-                alt_src = Path(HIGHRES_IMAGES_DIR) / f"{base_name}{ext}"
+                alt_src = highres_images_dir / f"{base_name}{ext}"
                 if alt_src.exists():
                     src = alt_src
                     original_filename = src.name  # Update to actual filename
@@ -76,9 +136,16 @@ def main():
         
         shutil.copy2(src, dst)
         copied += 1
-        print(f"  [{copied}/{len(keyframe_data)}] {original_filename}")
+        if copied <= 5 or copied == len(keyframe_data):
+            print(f"  [{copied}/{len(keyframe_data)}] {original_filename}")
+        elif copied == 6:
+            print(f"  ... copying remaining images ...")
     
-    print(f"\n✅ Done! Copied {copied} images to {output_dir}")
+    print(f"\n{'='*70}")
+    print(f"✅ Successfully copied {copied}/{len(keyframe_data)} images!")
+    print(f"{'='*70}")
+    print(f"Output: {output_dir}")
+    print()
 
 
 if __name__ == "__main__":

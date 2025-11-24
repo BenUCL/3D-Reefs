@@ -64,8 +64,13 @@ The pipeline supports two modes for Gaussian splatting, controlled by the `use_h
 - **Advantages**: Maximum resolution and detail in final splats
 - **Disadvantages**: Requires original images, longer training time, more memory
 - **Requirements**: Must set `paths.original_images_path` in config
+- **Automatic Pipeline**: When enabled, steps 5b and 5c run automatically to update poses and copy high-res images
 
 **Technical Note**: MASt3R-SLAM internally undistorts images using `cv2.remap()` with the OPENCV model. The output keyframes are distortion-free, which is why we can use PINHOLE for Mode A. However, the original high-res images retain the lens distortion, so Mode B must use the full OPENCV model with distortion coefficients.
+
+**Pipeline Automation**: Setting `use_highres_for_splatting: true` automatically triggers:
+- Step 5b: Updates COLMAP images.txt/bin with high-res filenames
+- Step 5c: Copies high-res keyframe images to splatting directory
 
 
 ## Pipeline Steps
@@ -126,9 +131,28 @@ The pipeline executes these steps in order (with timing reported for each):
 - **Typical Duration**: 1-10s (depends on number of keyframes)
 - **Outputs**:
   - `for_splat/images/` - Keyframe images (copied or symlinked)
-  - `for_splat/sparse/0/images.bin` - Poses in COLMAP binary format
+  - `for_splat/sparse/0/cameras.bin` - Camera model in COLMAP binary format
   - `for_splat/sparse/0/images.txt` - Poses in COLMAP text format
 - **Key Detail**: Converts from camera→world (TUM) to world→camera (COLMAP) transformation
+- **Auto-triggers**: If `use_highres_for_splatting: true`, automatically runs steps 5b and 5c after completion
+
+### 5b. Update High-Res Poses (`get_highres_poses.py`) - Auto if `use_highres_for_splatting: true`
+- **What**: Updates COLMAP images.txt/bin to use high-res image filenames
+- **Why**: Enables splatting with full-resolution images while keeping SLAM poses
+- **Typical Duration**: <1s
+- **Outputs**:
+  - `for_splat/sparse/0/images_lowres.txt/bin` - Backup of original
+  - `for_splat/sparse/0/images.txt/bin` - Updated with high-res filenames
+  - `mslam_logs/keyframe_mapping_full.txt` - Extended mapping
+- **Key Detail**: Only the NAME field changes; all pose data remains identical
+
+### 5c. Copy High-Res Images (`copy_highres_keyframes.py`) - Auto if `use_highres_for_splatting: true`
+- **What**: Copies high-resolution keyframe images to splatting directory
+- **Why**: Provides the actual high-res images for Gaussian splatting
+- **Typical Duration**: 5-30s (depends on image count and size)
+- **Outputs**:
+  - `for_splat/images/` - High-res keyframe images with original filenames
+- **Key Detail**: Preserves original filenames including spaces (e.g., `2019A_GP_Left (7).JPG`)
 
 ### 6. PLY to points3D Conversion (`mslam_ply_to_points3d.py`)
 - **What**: Converts MASt3R point cloud to COLMAP points3D.bin
@@ -178,8 +202,9 @@ All outputs for a run are organized under `/intermediate_data/{run_name}/`:
 │   └── {run_name}.ply             # Sparse point cloud (5-10M points)
 │
 ├── for_splat/                     # Steps 5-6: COLMAP format for LichtFeld-Studio
-│   ├── images/                    # Keyframes (copied or symlinked from mslam_logs/keyframes/)
-│   │   ├── 000000.png
+│   ├── images/                    # Keyframes (low-res PNGs or high-res originals depending on mode)
+│   │   ├── 000000.png             # Mode A: downsampled keyframes
+│   │   └── 2019A_GP_Left (7).JPG  # Mode B: high-res originals (if use_highres_for_splatting=true)
 │   │   └── ...
 │   └── sparse/0/
 │       ├── cameras.bin            # Camera model (PINHOLE for keyframes, OPENCV for high-res)
@@ -187,7 +212,9 @@ All outputs for a run are organized under `/intermediate_data/{run_name}/`:
 │       ├── cameras_lowres.txt     # Backup (if convert_intrinsics.py was run)
 │       ├── cameras_lowres.bin     # Backup (if convert_intrinsics.py was run)
 │       ├── images.bin             # Camera poses (COLMAP format)
-│       ├── images.txt
+│       ├── images.txt             # Uses high-res filenames if Mode B
+│       ├── images_lowres.txt      # Backup with low-res names (if use_highres_for_splatting=true)
+│       ├── images_lowres.bin      # Backup with low-res names (if use_highres_for_splatting=true)
 │       └── points3D.bin           # Sampled point cloud for initialization (~500K-1M points)
 │
 ├── splats/                        # Step 7: Gaussian splatting outputs (first run)

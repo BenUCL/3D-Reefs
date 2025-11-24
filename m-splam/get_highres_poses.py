@@ -1,33 +1,31 @@
 #!/usr/bin/env python3
 """
-generate_highres_images_colmap.py
+get_highres_images_colmap.py
 
-Generate COLMAP images_highres.txt/bin files that reference the high-resolution
-source image filenames instead of the downsampled timestamp-based keyframe names.
+Update COLMAP images.txt/bin files to reference the high-resolution source image
+filenames instead of the downsampled timestamp-based keyframe names.
 
 This enables using full-resolution images for Gaussian splatting while keeping the same
 camera poses estimated by MASt3R-SLAM on downsampled images.
 
 Input:
-  - keyframe_mapping.txt: Maps timestamp → frame_id (from MASt3R-SLAM)
-  - High-res images directory: Contains full-resolution source images
-  - images.txt: COLMAP poses for downsampled keyframes
+  - keyframe_mapping.txt: Maps timestamp → frame_id → original_filename (from MASt3R-SLAM)
+  - images.txt/bin: COLMAP poses for downsampled keyframes
 
 Output:
-  - images_highres.txt: COLMAP format with high-res filenames
-  - images_highres.bin: Binary version of above
+  - images_lowres.txt/bin: Backup of original images files
+  - images.txt/bin: Updated to use high-res filenames (overwrites original)
   - keyframe_mapping_full.txt: Extended mapping with high-res filenames
 
 Usage:
-  python generate_highres_images_colmap.py --dataset mars_johns_1 --images_path /path/to/highres/images
-  python generate_highres_images_colmap.py --dataset mars_johns_1 --images_path /path/to/highres/images --extension .jpg
+  python get_highres_images_colmap.py --dataset mars_johns_1
+  python get_highres_images_colmap.py --dataset mars_johns_1 --mslam_logs_dir /custom/path
 """
 
 import argparse
 import struct
-import numpy as np
+import shutil
 from pathlib import Path
-from natsort import natsorted
 
 
 INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
@@ -35,39 +33,36 @@ INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 def read_keyframe_mapping(mapping_file):
     """
-    Read keyframe_mapping.txt and return timestamp→frame_id mapping.
+    Read keyframe_mapping.txt and return timestamp→frame_id and timestamp→filename mappings.
     
-    Format: timestamp frame_id
+    Format: timestamp frame_id "original_filename.ext"
+    
+    Returns:
+        tuple: (timestamp_to_frame_id dict, timestamp_to_filename dict)
     """
-    mapping = {}
+    timestamp_to_frame_id = {}
+    timestamp_to_filename = {}
+    
     with open(mapping_file, 'r') as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith('#'):
+            # Skip comments, empty lines, and header
+            if not line or line.startswith('#') or line.startswith('m-slam_file'):
                 continue
-            parts = line.split()
-            if len(parts) >= 2:
+            
+            # Parse: timestamp frame_id "filename with spaces.ext"
+            # Split only on first two spaces to preserve filename with spaces
+            parts = line.split(None, 2)  # Split on whitespace, max 2 splits
+            if len(parts) >= 3:
                 timestamp = float(parts[0])
                 frame_id = int(parts[1])
-                mapping[timestamp] = frame_id
-    return mapping
-
-
-def get_original_filenames(images_path, extension='.JPG'):
-    """
-    Get sorted list of original image filenames from the source directory.
-    Uses natsort for proper numerical ordering (e.g., (9).JPG before (10).JPG).
+                # Remove quotes from filename
+                original_filename = parts[2].strip('"')
+                
+                timestamp_to_frame_id[timestamp] = frame_id
+                timestamp_to_filename[timestamp] = original_filename
     
-    Returns list of Path objects.
-    """
-    images_path = Path(images_path)
-    pattern = f"*{extension}"
-    files = natsorted(list(images_path.glob(pattern)))
-    
-    if not files:
-        raise ValueError(f"No images found matching {pattern} in {images_path}")
-    
-    return files
+    return timestamp_to_frame_id, timestamp_to_filename
 
 
 def parse_colmap_images_txt(images_txt):
@@ -216,19 +211,19 @@ def write_full_mapping(output_path, images_data):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate COLMAP files with original high-res image filenames",
+        description="Update COLMAP images files to use high-res image filenames",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example:
-  python generate_original_images_colmap.py \\
-      --dataset mars_johns_1 \\
-      --images_path /home/ben/encode/data/mars_johns/left \\
-      --extension .JPG
+  python get_highres_images_colmap.py --dataset highres_Mars
+  python get_highres_images_colmap.py --dataset highres_Mars --mslam_logs_dir /custom/path
 
-This creates:
-  - images_original.txt: COLMAP format with original filenames
-  - images_original.bin: Binary version
-  - keyframe_mapping_full.txt: Complete timestamp→filename mapping
+This will:
+  1. Backup images.txt/bin → images_lowres.txt/bin
+  2. Update images.txt/bin with high-res filenames from keyframe_mapping.txt
+  3. Create keyframe_mapping_full.txt with extended info
+
+Note: Filenames are read from keyframe_mapping.txt (which includes the original filenames)
 """
     )
     
@@ -237,18 +232,6 @@ This creates:
         type=str,
         required=True,
         help='Dataset name (run directory in intermediate_data)'
-    )
-    parser.add_argument(
-        '--images_path',
-        type=str,
-        required=True,
-        help='Path to directory containing original high-resolution images'
-    )
-    parser.add_argument(
-        '--extension',
-        type=str,
-        default='.JPG',
-        help='Image file extension (default: .JPG, can use .jpg, .png, etc.)'
     )
     parser.add_argument(
         '--mslam_logs_dir',
@@ -269,9 +252,15 @@ This creates:
     
     mapping_file = mslam_logs / 'keyframe_mapping.txt'
     images_txt = run_dir / 'for_splat' / 'sparse' / '0' / 'images.txt'
+    images_bin = run_dir / 'for_splat' / 'sparse' / '0' / 'images.bin'
     
-    output_txt = run_dir / 'for_splat' / 'sparse' / '0' / 'images_original.txt'
-    output_bin = run_dir / 'for_splat' / 'sparse' / '0' / 'images_original.bin'
+    # Backup original files
+    backup_txt = run_dir / 'for_splat' / 'sparse' / '0' / 'images_lowres.txt'
+    backup_bin = run_dir / 'for_splat' / 'sparse' / '0' / 'images_lowres.bin'
+    
+    # Output will overwrite original images.txt/bin
+    output_txt = images_txt
+    output_bin = images_bin
     output_mapping = mslam_logs / 'keyframe_mapping_full.txt'
     
     # Validate inputs
@@ -287,59 +276,60 @@ This creates:
             f"Make sure you've run cam_pose_keyframes_shuttle.py first"
         )
     
+    if not images_bin.exists():
+        raise FileNotFoundError(
+            f"COLMAP images.bin not found: {images_bin}\n"
+            f"Make sure you've run cam_pose_keyframes_shuttle.py first"
+        )
+    
     print(f"\n{'='*70}")
-    print(f"Generating COLMAP files with original image names")
+    print(f"Updating COLMAP images files with high-res filenames")
     print(f"{'='*70}")
     print(f"Dataset: {args.dataset}")
-    print(f"Original images: {args.images_path}")
-    print(f"Extension: {args.extension}")
     print()
     
-    # Step 1: Read keyframe mapping
-    print("[1/5] Reading keyframe mapping...")
-    timestamp_to_frame_id = read_keyframe_mapping(mapping_file)
-    print(f"  ✓ Loaded {len(timestamp_to_frame_id)} keyframe mappings")
+    # Step 0: Backup original images.txt/bin
+    print("[0/4] Backing up original images.txt/bin...")
+    shutil.copy2(images_txt, backup_txt)
+    shutil.copy2(images_bin, backup_bin)
+    print(f"  ✓ Backed up to images_lowres.txt/bin")
     
-    # Step 2: Get original image filenames
-    print("\n[2/5] Reading original image filenames...")
-    original_files = get_original_filenames(args.images_path, args.extension)
-    print(f"  ✓ Found {len(original_files)} original images")
+    # Step 1: Read keyframe mapping (with original filenames)
+    print("\n[1/4] Reading keyframe mapping with original filenames...")
+    timestamp_to_frame_id, timestamp_to_filename = read_keyframe_mapping(mapping_file)
+    print(f"  ✓ Loaded {len(timestamp_to_filename)} keyframe mappings")
     
-    # Step 3: Parse COLMAP images.txt
-    print("\n[3/5] Parsing COLMAP images.txt...")
+    # Step 2: Parse COLMAP images.txt
+    print("\n[2/4] Parsing COLMAP images.txt...")
     images_data = parse_colmap_images_txt(images_txt)
     print(f"  ✓ Loaded {len(images_data)} image poses")
     
-    # Step 4: Match timestamps to original filenames
-    print("\n[4/5] Matching keyframes to original images...")
+    # Step 3: Match timestamps to original filenames from mapping
+    print("\n[3/4] Matching keyframes to original filenames...")
     matched_count = 0
     
     for img in images_data:
         timestamp = img['timestamp']
         
-        if timestamp not in timestamp_to_frame_id:
-            print(f"  ⚠️  Warning: No frame_id found for timestamp {timestamp}")
+        if timestamp not in timestamp_to_filename:
+            print(f"  ⚠️  Warning: No filename found for timestamp {timestamp}")
             continue
         
+        # Get original filename directly from mapping
+        original_filename = timestamp_to_filename[timestamp]
         frame_id = timestamp_to_frame_id[timestamp]
         
-        if frame_id >= len(original_files):
-            print(f"  ⚠️  Warning: frame_id {frame_id} out of range (have {len(original_files)} images)")
-            continue
-        
-        # Get original filename
-        original_file = original_files[frame_id]
-        img['original_name'] = original_file.name
+        img['original_name'] = original_filename
         img['frame_id'] = frame_id
         matched_count += 1
     
-    print(f"  ✓ Matched {matched_count}/{len(images_data)} keyframes to original images")
+    print(f"  ✓ Matched {matched_count}/{len(images_data)} keyframes to original filenames")
     
     if matched_count == 0:
-        raise ValueError("No keyframes could be matched to original images!")
+        raise ValueError("No keyframes could be matched to original filenames!")
     
-    # Step 5: Write output files
-    print("\n[5/5] Writing output files...")
+    # Step 4: Write output files (overwriting images.txt/bin)
+    print("\n[4/4] Writing updated images.txt/bin files...")
     
     # Filter to only successfully matched images
     matched_images = [img for img in images_data if 'original_name' in img]
@@ -349,16 +339,16 @@ This creates:
     write_full_mapping(output_mapping, matched_images)
     
     print(f"\n{'='*70}")
-    print(f"✅ Successfully generated COLMAP files with original names!")
+    print(f"✅ Successfully updated COLMAP files with high-res filenames!")
     print(f"{'='*70}")
-    print(f"\nOutput files:")
-    print(f"  - {output_txt}")
-    print(f"  - {output_bin}")
-    print(f"  - {output_mapping}")
-    print(f"\n💡 Usage:")
-    print(f"  1. Copy/convert original high-res images to: {run_dir / 'for_splat' / 'images_highres'}/")
-    print(f"  2. Update splatting script to use images_original.txt instead of images.txt")
-    print(f"  3. Point splatting to images_highres/ directory")
+    print(f"\nUpdated files:")
+    print(f"  - {output_txt} (original backed up as images_lowres.txt)")
+    print(f"  - {output_bin} (original backed up as images_lowres.bin)")
+    print(f"  - {output_mapping} (extended mapping file)")
+    print(f"\n💡 Next steps:")
+    print(f"  1. Copy high-res images using copy_highres_keyframes.py")
+    print(f"  2. Run Gaussian splatting - it will now use high-res images!")
+    print(f"\n⚠️  Note: Filenames with spaces are fully supported by COLMAP")
     print()
 
 
