@@ -1,5 +1,7 @@
 # Pipeline Configuration Template
 # Copy this file and customize for each run
+# run example command:
+# python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
 run_name: "highres_Mars"
@@ -45,7 +47,7 @@ intrinsics_conversion:
   # - MASt3R-SLAM outputs undistorted keyframes (~512px width) which are PINHOLE-compatible
   # - Original images retain lens distortion and need OPENCV/FISHEYE model
   # - If true: Also runs convert_intrinsics.py to scale intrinsics from low-res to high-res
-  use_highres_for_splatting: false #TODO: move to a global var?
+  use_highres_for_splatting: true #TODO: move to a global var?
   
   # Also save original camera model as cameras_{MODEL}.bin/txt
   keep_original: false
