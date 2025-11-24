@@ -194,6 +194,7 @@ def write_colmap_cameras_bin(output_path, camera_id, model, width, height, param
         f.write(struct.pack('<i', model_id))
         f.write(struct.pack('<Q', width))
         f.write(struct.pack('<Q', height))
+        f.write(struct.pack('<Q', len(params)))  # FIX: Must write num_params!
         
         # Write parameters
         for param in params:
@@ -204,7 +205,7 @@ def write_colmap_cameras_bin(output_path, camera_id, model, width, height, param
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert COLMAP intrinsics for MASt3R-SLAM (original model) and LichtFeld (PINHOLE)"
+        description="Convert COLMAP intrinsics for MASt3R-SLAM (original model) and LichtFeld"
     )
     parser.add_argument(
         '--dataset',
@@ -213,9 +214,14 @@ def main():
         help='Dataset name (e.g., reef_soneva)'
     )
     parser.add_argument(
+        '--use-highres-for-splatting',
+        action='store_true',
+        help='Keep original camera model for high-res splatting (default: convert to PINHOLE for keyframes)'
+    )
+    parser.add_argument(
         '--keep-original',
         action='store_true',
-        help='Also save original model as cameras_{MODEL}.bin/txt (default: only PINHOLE)'
+        help='Also save original model as cameras_{MODEL}.bin/txt'
     )
     
     args = parser.parse_args()
@@ -273,33 +279,43 @@ def main():
     print(f"    cx={K_slam[0,2]:.2f}, cy={K_slam[1,2]:.2f}")
     
     # =========================================================================
-    # 3. Save LichtFeld cameras as PINHOLE (no distortion, SLAM resolution)
+    # 3. Save LichtFeld cameras (PINHOLE for keyframes, or original model for high-res)
     # =========================================================================
-    print(f"\n[3/3] Saving LichtFeld cameras (PINHOLE - no distortion)...")
+    if args.use_highres_for_splatting:
+        print(f"\n[3/3] Saving LichtFeld cameras ({original_model} - for high-res splatting)...")
+        
+        # Keep original model with distortion (scaled to SLAM resolution)
+        splat_model = original_model
+        splat_params = [K_slam[0,0], K_slam[1,1], K_slam[0,2], K_slam[1,2]]
+        if distortion:
+            splat_params.extend(distortion)
+    else:
+        print(f"\n[3/3] Saving LichtFeld cameras (PINHOLE - no distortion, for undistorted keyframes)...")
+        
+        # PINHOLE parameters (only fx, fy, cx, cy) - keyframes are already undistorted
+        splat_model = 'PINHOLE'
+        splat_params = [K_slam[0,0], K_slam[1,1], K_slam[0,2], K_slam[1,2]]
     
-    # PINHOLE parameters (only fx, fy, cx, cy)
-    pinhole_params = [K_slam[0,0], K_slam[1,1], K_slam[0,2], K_slam[1,2]]
-    
-    # Default output: cameras.bin/txt with PINHOLE model
+    # Default output: cameras.bin/txt
     cameras_bin_path = splat_dir / 'cameras.bin'
     cameras_txt_path = splat_dir / 'cameras.txt'
     
     write_colmap_cameras_bin(
         cameras_bin_path,
         cam['camera_id'],
-        'PINHOLE',
+        splat_model,
         slam_width,
         slam_height,
-        pinhole_params
+        splat_params
     )
     
     write_colmap_cameras_txt(
         cameras_txt_path,
         cam['camera_id'],
-        'PINHOLE',
+        splat_model,
         slam_width,
         slam_height,
-        pinhole_params
+        splat_params
     )
     
     # Optional: also save original model version
@@ -345,7 +361,12 @@ def main():
     print(f"\n  2. LichtFeld-Studio:")
     print(f"     - {cameras_bin_path}")
     print(f"     - {cameras_txt_path}")
-    print(f"     - Format: PINHOLE no distortion (SLAM resolution {slam_width}x{slam_height})")
+    if args.use_highres_for_splatting:
+        print(f"     - Format: {splat_model} with distortion (SLAM resolution {slam_width}x{slam_height})")
+        print(f"     - Mode: High-res splatting (will be scaled to high-res by convert_intrinsics.py)")
+    else:
+        print(f"     - Format: {splat_model} no distortion (SLAM resolution {slam_width}x{slam_height})")
+        print(f"     - Mode: Keyframe splatting (undistorted images from MASt3R-SLAM)")
     
     if args.keep_original:
         print(f"\n  3. LichtFeld-Studio (original model backup):")
@@ -356,14 +377,24 @@ def main():
     print(f"\nKey design decisions:")
     print(f"  ✓ MASt3R-SLAM uses {original_model} model (needs distortion for cv2.remap)")
     print(f"  ✓ MASt3R-SLAM keyframes are undistorted internally via cv2.remap()")
-    print(f"  ✓ LichtFeld uses PINHOLE model (keyframes already undistorted)")
-    print(f"  ✓ No --gut flag needed with PINHOLE (no distortion to model)")
+    if args.use_highres_for_splatting:
+        print(f"  ✓ LichtFeld will use {splat_model} model (for distorted high-res images)")
+        print(f"  ✓ Intrinsics will be scaled to high-res by convert_intrinsics.py")
+        print(f"  ✓ Use --gut flag in LichtFeld ({splat_model} has distortion params)")
+    else:
+        print(f"  ✓ LichtFeld uses PINHOLE model (keyframes already undistorted)")
+        print(f"  ✓ No --gut flag needed with PINHOLE (no distortion to model)")
     
     print(f"\nNext steps:")
     print(f"  1. Run MASt3R-SLAM with intrinsics.yaml")
     print(f"  2. Run cam_pose_keyframes_shuttle.py to convert poses")
-    print(f"  3. Run mslam_ply_to_points3d.py to convert point cloud")
-    print(f"  4. Run LichtFeld WITHOUT --gut flag (PINHOLE model)")
+    if args.use_highres_for_splatting:
+        print(f"  3. Run convert_intrinsics.py to scale intrinsics to high-res")
+        print(f"  4. Run mslam_ply_to_points3d.py to convert point cloud")
+        print(f"  5. Run LichtFeld WITH --gut flag ({splat_model} model)")
+    else:
+        print(f"  3. Run mslam_ply_to_points3d.py to convert point cloud")
+        print(f"  4. Run LichtFeld WITHOUT --gut flag (PINHOLE model)")
     print()
 
 

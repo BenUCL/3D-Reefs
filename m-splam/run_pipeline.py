@@ -19,6 +19,8 @@ Usage:
     python run_pipeline.py --config slam_splat_config.yaml --only 1        # Run only step 1
 """
 
+# TODO: many aperts, e.g step 2 will say 'COMPLETE SUCCESS' even if they did not
+
 import argparse
 import subprocess
 import sys
@@ -234,10 +236,16 @@ class PipelineRunner:
     def step_2_intrinsics_conversion(self):
         """Step 2: Convert intrinsics for MASt3R-SLAM and LichtFeld.
         
-        Outputs:
-            - {run_dir}/intrinsics.yaml - Intrinsics for MASt3R-SLAM (OPENCV format with distortion)
-            - {run_dir}/for_splat/sparse/0/cameras.bin - PINHOLE camera model for LichtFeld
-            - {run_dir}/for_splat/sparse/0/cameras.txt - PINHOLE camera model (text format)
+        Two modes depending on use_highres_for_splatting:
+        
+        Mode A (use_highres_for_splatting=false, default):
+            - MASt3R-SLAM keyframes are undistorted → LichtFeld uses PINHOLE model
+            - Outputs: intrinsics.yaml (OPENCV), cameras.txt/bin (PINHOLE at SLAM resolution)
+        
+        Mode B (use_highres_for_splatting=true):
+            - Original high-res images retain distortion → LichtFeld uses original model (OPENCV)
+            - Outputs: intrinsics.yaml (OPENCV), cameras.txt/bin (OPENCV at SLAM resolution)
+            - Then runs convert_intrinsics.py to scale intrinsics to high-res resolution
         """
         step_name = "2. Intrinsics Conversion"
         step_num = 2
@@ -255,19 +263,60 @@ class PipelineRunner:
             return True
         
         cfg = self.config['intrinsics_conversion']
+        
+        # Step 2a: Run shuttle_intrinsics.py
+        self.log("\n[2a] Converting COLMAP intrinsics...")
         cmd = [
             'python',
             str(Path(__file__).parent / 'shuttle_intrinsics.py'),
             '--dataset', self.run_name
         ]
         
+        if cfg.get('use_highres_for_splatting', False):
+            cmd.append('--use-highres-for-splatting')
+            self.log("  Mode: High-res splatting (will keep original camera model)")
+        else:
+            self.log("  Mode: Keyframe splatting (will convert to PINHOLE)")
+        
         if cfg.get('keep_original', False):
             cmd.append('--keep-original')
         
-        result = self.run_command(cmd, step_name)
+        result = self.run_command(cmd, "2a. shuttle_intrinsics.py")
+        if not result:
+            step_duration = time.time() - step_start
+            self.log_timing(step_num, step_name, step_duration, skipped=False)
+            return False
+        
+        # Step 2b: If using high-res for splatting, scale intrinsics to high-res resolution
+        if cfg.get('use_highres_for_splatting', False):
+            self.log("\n[2b] Scaling intrinsics to high-res resolution...")
+            
+            # Check if paths are configured
+            if 'original_images_path' not in self.paths:
+                self.log("❌ ERROR: use_highres_for_splatting=true but paths.original_images_path not configured!")
+                step_duration = time.time() - step_start
+                self.log_timing(step_num, step_name, step_duration, skipped=False)
+                return False
+            
+            intrinsics_dir = self.run_dir / 'for_splat' / 'sparse' / '0'
+            
+            cmd = [
+                'python',
+                str(Path(__file__).parent / 'convert_intrinsics.py'),
+                '--highres-images', self.paths['original_images_path'],
+                '--lowres-images', self.paths['images_path'],
+                '--intrinsics-dir', str(intrinsics_dir)
+            ]
+            
+            result = self.run_command(cmd, "2b. convert_intrinsics.py")
+            if not result:
+                step_duration = time.time() - step_start
+                self.log_timing(step_num, step_name, step_duration, skipped=False)
+                return False
+        
         step_duration = time.time() - step_start
         self.log_timing(step_num, step_name, step_duration, skipped=False)
-        return result
+        return True
     
     def step_3_mast3r_slam(self):
         """Step 3: Run MASt3R-SLAM.

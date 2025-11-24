@@ -42,6 +42,31 @@ python run_pipeline.py --config my_config.yaml
 - If using stereo cameras, they may have a tiny difference in pixel count (e.g., I previously found: 1600x1399 vs 1600x1397). Use `crop_images_uniform.py` to crop to the smaller of the sizes. This will shave the excess pixels off the larger images.
 - Make sure all images are PNG's, use `jpeg2png.py`. TODO: A [PR](https://github.com/rmurai0610/MASt3R-SLAM/pull/19) on the m-slam repo supports pngs or jpgs. although consider if this could cause memory issues.
 
+## Splatting Modes: Keyframe vs High-Resolution
+
+The pipeline supports two modes for Gaussian splatting, controlled by the `use_highres_for_splatting` flag in your config:
+
+### Mode A: Splat with M-SLAM Keyframes (Default, `use_highres_for_splatting: false`)
+- **Images Used**: MASt3R-SLAM's undistorted keyframes (~512px width, resized to maintain aspect ratio)
+- **Camera Model**: PINHOLE (no distortion - keyframes are already undistorted by cv2.remap)
+- **Intrinsics**: Scaled to SLAM resolution (e.g., 512x448 for 16:14 aspect ratio)
+- **LichtFeld Flag**: No `--gut` flag needed (PINHOLE has no distortion parameters)
+- **Advantages**: Simpler, faster, no need for original images
+- **Disadvantages**: Lower resolution limits detail in final splats
+
+### Mode B: Splat with raw High-Resolution images (`use_highres_for_splatting: true`)
+**Best for:** In theory should give maximum quality as it will use the original high-res gopro images rather than the keyframes output by MASt3R-SLAM which are downsamples.
+
+- **Images Used**: Original high-resolution images (e.g., 5568x4872 from GoPro)
+- **Camera Model**: Original model from COLMAP (OPENCV or OPENCV_FISHEYE with distortion)
+- **Intrinsics**: Scaled from low-res to high-res resolution (e.g., 1600x1400 → 5568x4872)
+- **LichtFeld Flag**: Must use `--gut` flag (distortion parameters present) #TODO: check this
+- **Advantages**: Maximum resolution and detail in final splats
+- **Disadvantages**: Requires original images, longer training time, more memory
+- **Requirements**: Must set `paths.original_images_path` in config
+
+**Technical Note**: MASt3R-SLAM internally undistorts images using `cv2.remap()` with the OPENCV model. The output keyframes are distortion-free, which is why we can use PINHOLE for Mode A. However, the original high-res images retain the lens distortion, so Mode B must use the full OPENCV model with distortion coefficients.
+
 
 ## Pipeline Steps
 
@@ -56,14 +81,24 @@ The pipeline executes these steps in order (with timing reported for each):
   - `colmap_outputs/calibration_summary.txt` - Summary with registration percentage
   - `colmap_outputs/sparse/0/` - Full COLMAP reconstruction (cameras, images, points)
 
-### 2. Intrinsics Conversion (`shuttle_intrinsics.py`)
+### 2. Intrinsics Conversion (`shuttle_intrinsics.py` + optional `convert_intrinsics.py`)
 - **What**: Converts COLMAP intrinsics into formats needed by downstream tools
-- **Why**: MASt3R-SLAM needs OPENCV model at raw resolution, LichtFeld needs PINHOLE at SLAM resolution
-- **Typical Duration**: <1s
-- **Outputs**:
-  - `intrinsics.yaml` - For MASt3R-SLAM (OPENCV model with distortion coefficients)
-  - `for_splat/sparse/0/cameras.bin/txt` - For LichtFeld (PINHOLE model, no distortion)
-- **Key Detail**: Automatically scales intrinsics using MASt3R-SLAM's resize transformation
+- **Why**: MASt3R-SLAM needs OPENCV camera model at raw resolution; LichtFeld needs a camera model matching image type
+- **Typical Duration**: <1s (shuttle_intrinsics) + 1-2s (convert_intrinsics if needed)
+- **Two Modes** (controlled by `use_highres_for_splatting` in config):
+  
+  **Mode A: Splat with M-SLAM Keyframes** (`use_highres_for_splatting: false`, default)
+  - Uses MASt3R-SLAM's undistorted keyframes (~512px width)
+  - Converts to PINHOLE model (no distortion needed - keyframes already undistorted)
+  - Outputs: `intrinsics.yaml` (OPENCV), `for_splat/sparse/0/cameras.txt/bin` (PINHOLE)
+  
+  **Mode B: Splat with raw High-Resolution images** (`use_highres_for_splatting: true`)
+  - Uses original high-resolution images (retain lens distortion)
+  - Keeps original camera model (OPENCV/FISHEYE with distortion)
+  - Runs `convert_intrinsics.py` to scale intrinsics from low-res to high-res resolution
+  - Outputs: `intrinsics.yaml` (OPENCV), `for_splat/sparse/0/cameras.txt/bin` (OPENCV scaled to high-res)
+  
+- **Key Detail**: Automatically scales intrinsics using MASt3R-SLAM's resize transformation, and optionally scales to high-res
 
 ### 3. MASt3R-SLAM
 - **What**: Runs visual SLAM on full image sequence
@@ -147,8 +182,10 @@ All outputs for a run are organized under `/intermediate_data/{run_name}/`:
 │   │   ├── 000000.png
 │   │   └── ...
 │   └── sparse/0/
-│       ├── cameras.bin            # PINHOLE model (no distortion, SLAM resolution)
-│       ├── cameras.txt
+│       ├── cameras.bin            # Camera model (PINHOLE for keyframes, OPENCV for high-res)
+│       ├── cameras.txt            # Scaled to appropriate resolution
+│       ├── cameras_lowres.txt     # Backup (if convert_intrinsics.py was run)
+│       ├── cameras_lowres.bin     # Backup (if convert_intrinsics.py was run)
 │       ├── images.bin             # Camera poses (COLMAP format)
 │       ├── images.txt
 │       └── points3D.bin           # Sampled point cloud for initialization (~500K-1M points)

@@ -2,7 +2,7 @@
 # Copy this file and customize for each run
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "highres_m-slam_MarsJohnS"
+run_name: "highres_Mars"
 
 # Pipeline Control
 pipeline:
@@ -37,6 +37,16 @@ intrinsics_estimation:
 
 # Step 2: Intrinsics Conversion (shuttle_intrinsics.py)
 intrinsics_conversion:
+  # Use high-resolution original images for splatting?
+  # - true:  Use original high-res images (distorted) → Keeps OPENCV model, scales intrinsics to high-res
+  # - false: Use MASt3R-SLAM keyframes (undistorted) → Converts to PINHOLE model, uses SLAM resolution
+  # 
+  # Technical details:
+  # - MASt3R-SLAM outputs undistorted keyframes (~512px width) which are PINHOLE-compatible
+  # - Original images retain lens distortion and need OPENCV/FISHEYE model
+  # - If true: Also runs convert_intrinsics.py to scale intrinsics from low-res to high-res
+  use_highres_for_splatting: false #TODO: move to a global var?
+  
   # Also save original camera model as cameras_{MODEL}.bin/txt
   keep_original: false
 
