@@ -597,12 +597,14 @@ class PipelineRunner:
             return True
         
         mslam_logs = self.run_dir / 'mslam_logs'
+        original_images_path = Path(self.paths['original_images_path'])
         
         cmd = [
             'python',
             str(Path(__file__).parent / 'get_highres_poses.py'),
             '--dataset', self.run_name,
-            '--mslam_logs_dir', str(mslam_logs)
+            '--mslam_logs_dir', str(mslam_logs),
+            '--original_images_dir', str(original_images_path)
         ]
         
         result = self.run_command(cmd, step_name)

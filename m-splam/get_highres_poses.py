@@ -31,17 +31,37 @@ from pathlib import Path
 INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 
 
-def read_keyframe_mapping(mapping_file):
+def read_keyframe_mapping(mapping_file, original_images_dir=None):
     """
     Read keyframe_mapping.txt and return timestamp→frame_id and timestamp→filename mappings.
     
     Format: timestamp frame_id "original_filename.ext"
+    
+    Args:
+        mapping_file: Path to keyframe_mapping.txt
+        original_images_dir: Optional path to original high-res images directory.
+                           If provided, will auto-detect correct extension from actual files.
     
     Returns:
         tuple: (timestamp_to_frame_id dict, timestamp_to_filename dict)
     """
     timestamp_to_frame_id = {}
     timestamp_to_filename = {}
+    
+    # If original_images_dir provided, detect what extensions are actually present
+    actual_extensions = None
+    if original_images_dir:
+        original_images_dir = Path(original_images_dir)
+        if original_images_dir.exists():
+            # Check what image extensions exist in the directory
+            all_files = list(original_images_dir.glob('*'))
+            extensions = set()
+            for f in all_files:
+                if f.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp']:
+                    extensions.add(f.suffix)
+            actual_extensions = extensions
+            if actual_extensions:
+                print(f"  ℹ️  Detected extensions in original images: {', '.join(sorted(actual_extensions))}")
     
     with open(mapping_file, 'r') as f:
         for line in f:
@@ -58,6 +78,22 @@ def read_keyframe_mapping(mapping_file):
                 frame_id = int(parts[1])
                 # Remove quotes from filename
                 original_filename = parts[2].strip('"')
+                
+                # IMPORTANT: keyframe_mapping.txt contains filenames from downsampled images_path
+                # (e.g., .png for SLAM), but actual high-res files may have different extensions
+                # (e.g., .JPG, .JPEG, .PNG, etc.). Auto-detect correct extension if possible.
+                if actual_extensions and len(actual_extensions) > 0:
+                    # Try to match the filename with actual extensions in the directory
+                    base_name = Path(original_filename).stem
+                    mapping_ext = Path(original_filename).suffix
+                    
+                    # If mapping extension doesn't match any actual extension, try others
+                    if mapping_ext not in actual_extensions:
+                        # Try common alternatives in order of preference
+                        for try_ext in ['.JPG', '.jpg', '.JPEG', '.jpeg', '.PNG', '.png']:
+                            if try_ext in actual_extensions:
+                                original_filename = base_name + try_ext
+                                break
                 
                 timestamp_to_frame_id[timestamp] = frame_id
                 timestamp_to_filename[timestamp] = original_filename
@@ -239,6 +275,12 @@ Note: Filenames are read from keyframe_mapping.txt (which includes the original 
         default=None,
         help='Path to MASt3R-SLAM logs directory (default: auto-detect from intermediate_data)'
     )
+    parser.add_argument(
+        '--original_images_dir',
+        type=str,
+        default=None,
+        help='Path to original high-res images directory (for auto-detecting correct extensions)'
+    )
     
     args = parser.parse_args()
     
@@ -249,6 +291,8 @@ Note: Filenames are read from keyframe_mapping.txt (which includes the original 
         mslam_logs = Path(args.mslam_logs_dir)
     else:
         mslam_logs = run_dir / 'mslam_logs'
+    
+    original_images_dir = Path(args.original_images_dir) if args.original_images_dir else None
     
     mapping_file = mslam_logs / 'keyframe_mapping.txt'
     images_txt = run_dir / 'for_splat' / 'sparse' / '0' / 'images.txt'
@@ -288,20 +332,33 @@ Note: Filenames are read from keyframe_mapping.txt (which includes the original 
     print(f"Dataset: {args.dataset}")
     print()
     
-    # Step 0: Backup original images.txt/bin
-    print("[0/4] Backing up original images.txt/bin...")
-    shutil.copy2(images_txt, backup_txt)
-    shutil.copy2(images_bin, backup_bin)
-    print(f"  ✓ Backed up to images_lowres.txt/bin")
+    # Step 0: Backup original images.txt/bin (or use existing backup if already backed up)
+    print("[0/4] Checking for backups...")
+    source_txt = images_txt
+    source_bin = images_bin
+    
+    if backup_txt.exists() and backup_bin.exists():
+        print(f"  ℹ️  Backup already exists, reading from backup instead")
+        source_txt = backup_txt
+        source_bin = backup_bin
+    else:
+        print("  📋 Creating backups...")
+        shutil.copy2(images_txt, backup_txt)
+        shutil.copy2(images_bin, backup_bin)
+        print(f"  ✓ Backed up to images_lowres.txt/bin")
     
     # Step 1: Read keyframe mapping (with original filenames)
     print("\n[1/4] Reading keyframe mapping with original filenames...")
-    timestamp_to_frame_id, timestamp_to_filename = read_keyframe_mapping(mapping_file)
+    timestamp_to_frame_id, timestamp_to_filename = read_keyframe_mapping(
+        mapping_file, 
+        original_images_dir=original_images_dir
+    )
     print(f"  ✓ Loaded {len(timestamp_to_filename)} keyframe mappings")
     
-    # Step 2: Parse COLMAP images.txt
+    # Step 2: Parse COLMAP images.txt (from backup if it exists, to get timestamps)
     print("\n[2/4] Parsing COLMAP images.txt...")
-    images_data = parse_colmap_images_txt(images_txt)
+    print(f"  📄 Reading from: {source_txt.name}")
+    images_data = parse_colmap_images_txt(source_txt)
     print(f"  ✓ Loaded {len(images_data)} image poses")
     
     # Step 3: Match timestamps to original filenames from mapping
