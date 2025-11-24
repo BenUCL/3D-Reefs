@@ -26,28 +26,35 @@ def get_resolution(directory):
 
 def read_cameras_binary(path):
     """Read COLMAP cameras.bin file and return list of camera dicts."""
+    # Map model_id to (model_name, num_params) - COLMAP convention
+    model_info = {
+        0: ('SIMPLE_PINHOLE', 3),      # fx, cx, cy
+        1: ('PINHOLE', 4),              # fx, fy, cx, cy
+        2: ('SIMPLE_RADIAL', 4),        # fx, cx, cy, k1
+        3: ('RADIAL', 5),               # fx, cx, cy, k1, k2
+        4: ('OPENCV', 8),               # fx, fy, cx, cy, k1, k2, p1, p2
+        5: ('OPENCV_FISHEYE', 8),       # fx, fy, cx, cy, k1, k2, k3, k4
+        6: ('FULL_OPENCV', 12),         # fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6
+        7: ('FOV', 5),                  # fx, fy, cx, cy, omega
+        8: ('SIMPLE_RADIAL_FISHEYE', 4),
+        9: ('RADIAL_FISHEYE', 5),
+        10: ('THIN_PRISM_FISHEYE', 12)
+    }
+    
     cameras = []
     with open(path, 'rb') as f:
         num_cameras = struct.unpack('<Q', f.read(8))[0]
         for i in range(num_cameras):
-            camera_id = struct.unpack('<I', f.read(4))[0]
-            model_id = struct.unpack('<i', f.read(4))[0]
-            width = struct.unpack('<Q', f.read(8))[0]
-            height = struct.unpack('<Q', f.read(8))[0]
-            num_params = struct.unpack('<Q', f.read(8))[0]  # Unsigned, matching write format
+            # Read camera properties: camera_id (int), model_id (int), width (uint64), height (uint64)
+            # Format: iiQQ = 4 + 4 + 8 + 8 = 24 bytes
+            camera_id, model_id, width, height = struct.unpack('<iiQQ', f.read(24))
             
-            # Validate num_params is reasonable
-            if num_params > 20:
-                raise ValueError(f"Invalid num_params={num_params} for camera {i+1}. File may be corrupted.")
+            # Infer num_params from model_id (NOT stored in binary format)
+            if model_id not in model_info:
+                raise ValueError(f"Unknown model_id={model_id} for camera {i+1}")
             
+            model_name, num_params = model_info[model_id]
             params = struct.unpack(f'<{num_params}d', f.read(8 * num_params))
-            
-            # Map model_id to model_name (COLMAP convention)
-            model_names = {0: 'SIMPLE_PINHOLE', 1: 'PINHOLE', 2: 'SIMPLE_RADIAL',
-                          3: 'RADIAL', 4: 'OPENCV', 5: 'OPENCV_FISHEYE',
-                          6: 'FULL_OPENCV', 7: 'FOV', 8: 'SIMPLE_RADIAL_FISHEYE',
-                          9: 'RADIAL_FISHEYE', 10: 'THIN_PRISM_FISHEYE'}
-            model_name = model_names.get(model_id, 'UNKNOWN')
             
             cameras.append({
                 'camera_id': camera_id,
@@ -64,11 +71,11 @@ def write_cameras_binary(path, cameras):
     with open(path, 'wb') as f:
         f.write(struct.pack('<Q', len(cameras)))
         for cam in cameras:
-            f.write(struct.pack('<I', cam['camera_id']))
-            f.write(struct.pack('<i', cam['model_id']))
-            f.write(struct.pack('<Q', cam['width']))
-            f.write(struct.pack('<Q', cam['height']))
-            f.write(struct.pack('<Q', len(cam['params'])))
+            # Write camera properties: camera_id (int), model_id (int), width (uint64), height (uint64)
+            # Format: iiQQ = 24 bytes (num_params is NOT stored, it's inferred from model_id)
+            f.write(struct.pack('<iiQQ', cam['camera_id'], cam['model_id'], 
+                              cam['width'], cam['height']))
+            # Write params as doubles
             f.write(struct.pack(f'<{len(cam["params"])}d', *cam['params']))
 
 def scale_camera_params(params, scale_x, scale_y):
