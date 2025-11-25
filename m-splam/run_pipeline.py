@@ -240,12 +240,12 @@ class PipelineRunner:
         
         Mode A (use_highres_for_splatting=false, default):
             - MASt3R-SLAM keyframes are undistorted → LichtFeld uses PINHOLE model
-            - Outputs: intrinsics.yaml (OPENCV), cameras.txt/bin (PINHOLE at SLAM resolution)
+            - Outputs: intrinsics.yaml (OPENCV at 512px), cameras.txt/bin (PINHOLE at 512px)
         
         Mode B (use_highres_for_splatting=true):
             - Original high-res images retain distortion → LichtFeld uses original model (OPENCV)
-            - Outputs: intrinsics.yaml (OPENCV), cameras.txt/bin (OPENCV at SLAM resolution)
-            - Then runs convert_intrinsics.py to scale intrinsics to high-res resolution
+            - Outputs: intrinsics.yaml (OPENCV at 512px), cameras.txt/bin (OPENCV at high-res)
+            - Intrinsics scaled directly from calibration resolution to high-res in one step
         """
         step_name = "2. Intrinsics Conversion"
         step_num = 2
@@ -264,8 +264,8 @@ class PipelineRunner:
         
         cfg = self.config['intrinsics_conversion']
         
-        # Step 2a: Run shuttle_intrinsics.py
-        self.log("\n[2a] Converting COLMAP intrinsics...")
+        # Run shuttle_intrinsics.py
+        self.log("\nConverting COLMAP intrinsics...")
         cmd = [
             'python',
             str(Path(__file__).parent / 'shuttle_intrinsics.py'),
@@ -274,22 +274,6 @@ class PipelineRunner:
         
         if cfg.get('use_highres_for_splatting', False):
             cmd.append('--use-highres-for-splatting')
-            self.log("  Mode: High-res splatting (will keep original camera model)")
-        else:
-            self.log("  Mode: Keyframe splatting (will convert to PINHOLE)")
-        
-        if cfg.get('keep_original', False):
-            cmd.append('--keep-original')
-        
-        result = self.run_command(cmd, "2a. shuttle_intrinsics.py")
-        if not result:
-            step_duration = time.time() - step_start
-            self.log_timing(step_num, step_name, step_duration, skipped=False)
-            return False
-        
-        # Step 2b: If using high-res for splatting, scale intrinsics to high-res resolution
-        if cfg.get('use_highres_for_splatting', False):
-            self.log("\n[2b] Scaling intrinsics to high-res resolution...")
             
             # Check if paths are configured
             if 'original_images_path' not in self.paths:
@@ -298,21 +282,19 @@ class PipelineRunner:
                 self.log_timing(step_num, step_name, step_duration, skipped=False)
                 return False
             
-            intrinsics_dir = self.run_dir / 'for_splat' / 'sparse' / '0'
-            
-            cmd = [
-                'python',
-                str(Path(__file__).parent / 'convert_intrinsics.py'),
-                '--highres-images', self.paths['original_images_path'],
-                '--lowres-images', self.paths['images_path'],
-                '--intrinsics-dir', str(intrinsics_dir)
-            ]
-            
-            result = self.run_command(cmd, "2b. convert_intrinsics.py")
-            if not result:
-                step_duration = time.time() - step_start
-                self.log_timing(step_num, step_name, step_duration, skipped=False)
-                return False
+            cmd.extend(['--highres-images-path', self.paths['original_images_path']])
+            self.log("  Mode: High-res splatting (will scale intrinsics directly to high-res)")
+        else:
+            self.log("  Mode: Keyframe splatting (will convert to PINHOLE)")
+        
+        if cfg.get('keep_original', False):
+            cmd.append('--keep-original')
+        
+        result = self.run_command(cmd, "2. shuttle_intrinsics.py")
+        if not result:
+            step_duration = time.time() - step_start
+            self.log_timing(step_num, step_name, step_duration, skipped=False)
+            return False
         
         step_duration = time.time() - step_start
         self.log_timing(step_num, step_name, step_duration, skipped=False)

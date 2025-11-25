@@ -78,7 +78,7 @@ The pipeline supports two modes for Gaussian splatting, controlled by the `use_h
 The pipeline executes these steps in order (with timing reported for each):
 
 ### 1. COLMAP Intrinsics Estimation (`estimate_intrinsics.py`)
-- **What**: Calibrates camera intrinsics from first N raw images using COLMAP
+- **What**: Calibrates camera intrinsics from first N downsampled images using COLMAP (coplmap fails on raw high res images so have been using the 1600x1400 images then scaling the intrinsics in step 2)
 - **Why**: Provides accurate focal length, principal point, and distortion parameters
 - **Typical Duration**: 30s - 2min (depends on num_images and image size)
 - **Outputs**: 

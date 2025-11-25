@@ -3,25 +3,35 @@
 shuttle_intrinsics.py
 
 Convert and move COLMAP calibration intrinsics for use in:
-1. MASt3R-SLAM (intrinsics.yaml - original model with distortion, raw resolution)
-2. LichtFeld splat (cameras.txt + cameras.bin - PINHOLE no distortion, SLAM resolution)
+1. MASt3R-SLAM (intrinsics.yaml: original model with distortion, scaled to SLAM resolution 512x448)
+2. LichtFeld splat (cameras.txt + cameras.bin):
+   - If use_highres_for_splatting=False: PINHOLE model at SLAM resolution (keyframes already undistorted)
+   - If use_highres_for_splatting=True: OPENCV model at high-res resolution (original images have distortion)
 
-Key changes from v1:
-- Automatically converts to PINHOLE for LichtFeld outputs (keyframes already undistorted)
-- Optional --keep-original flag to also save original model as cameras_{MODEL}.bin/txt
-- Default behavior: only PINHOLE cameras.bin/txt (no distortion)
+Key behavior:
+- Always scales intrinsics from calibration resolution (e.g., 1600x1400) to SLAM resolution (512x448) for MASt3R-SLAM
+- For splatting:
+  * Low-res mode: Scales 1600→512, converts to PINHOLE (no distortion)
+  * High-res mode: Scales 1600→5568 (auto-detected), keeps OPENCV (with distortion)
 
 MUST RUN WITH: conda activate mast3r-slam
 
 Usage:
+    # Low-res splatting mode (default)
     python shuttle_intrinsics.py --dataset reef_soneva
-    python shuttle_intrinsics.py --dataset reef_soneva --keep-original  # also save original model
+    
+    # High-res splatting mode
+    python shuttle_intrinsics.py --dataset reef_soneva --use-highres-for-splatting \
+        --highres-images-path /path/to/highres/images
 """
 import argparse
 import yaml
 import numpy as np
 import struct
+import glob
+import os
 from pathlib import Path
+from PIL import Image
 
 # Import MASt3R-SLAM resize function for intrinsics adjustment
 from mast3r_slam.dataloader import resize_img
@@ -30,6 +40,23 @@ from mast3r_slam.dataloader import resize_img
 INTERMEDIATE_DATA_ROOT = Path('/home/ben/encode/data/intermediate_data')
 # The keyframe size parameter for mast3r-slam (single int, aspect ratio preserved)
 SLAM_SIZE = 512
+
+
+def get_resolution(directory):
+    """Finds the first image in a directory and returns (width, height)."""
+    #TODO: Would be safe to check a few. Sometimes images are a few pixels off and/or
+    # may even add multiple cameras so would need to handle that.
+    # Search for common extensions
+    types = ['*.jpg', '*.png', '*.jpeg', '*.JPG', '*.PNG']
+    files = []
+    for t in types:
+        files.extend(glob.glob(os.path.join(directory, t)))
+    
+    if not files:
+        raise FileNotFoundError(f"No images found in {directory}")
+    
+    with Image.open(files[0]) as img:
+        return img.size  # returns (width, height)
 
 
 def read_colmap_cameras_txt(cameras_txt_path):
@@ -164,7 +191,7 @@ def write_colmap_cameras_bin(output_path, camera_id, model, width, height, param
             model_id (int32)
             width (uint64)
             height (uint64)
-            params (double[num_params])
+            params (double[num_params]) - num_params is implicit from model_id, NOT written
     """
     # COLMAP model name to ID mapping
     MODEL_NAME_TO_ID = {
@@ -194,7 +221,8 @@ def write_colmap_cameras_bin(output_path, camera_id, model, width, height, param
         f.write(struct.pack('<i', model_id))
         f.write(struct.pack('<Q', width))
         f.write(struct.pack('<Q', height))
-        f.write(struct.pack('<Q', len(params)))  # FIX: Must write num_params!
+        # Note: COLMAP cameras.bin does NOT include num_params field
+        # The number of params is determined implicitly by the model_id
         
         # Write parameters
         for param in params:
@@ -216,7 +244,13 @@ def main():
     parser.add_argument(
         '--use-highres-for-splatting',
         action='store_true',
-        help='Keep original camera model for high-res splatting (default: convert to PINHOLE for keyframes)'
+        help='Scale intrinsics for high-res images instead of SLAM resolution (requires --highres-images-path)'
+    )
+    parser.add_argument(
+        '--highres-images-path',
+        type=str,
+        default=None,
+        help='Path to high-resolution images directory (required if --use-highres-for-splatting is set)'
     )
     parser.add_argument(
         '--keep-original',
@@ -225,6 +259,10 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Validate high-res arguments
+    if args.use_highres_for_splatting and not args.highres_images_path:
+        parser.error("--highres-images-path is required when --use-highres-for-splatting is set")
     
     # Construct paths from dataset name
     dataset_root = INTERMEDIATE_DATA_ROOT / args.dataset
@@ -279,22 +317,59 @@ def main():
     print(f"    cx={K_slam[0,2]:.2f}, cy={K_slam[1,2]:.2f}")
     
     # =========================================================================
-    # 3. Save LichtFeld cameras (PINHOLE for keyframes, or original model for high-res)
+    # 3. Determine target resolution for splatting
     # =========================================================================
     if args.use_highres_for_splatting:
-        print(f"\n[3/3] Saving LichtFeld cameras ({original_model} - for high-res splatting)...")
+        # Detect high-res image dimensions
+        print(f"\n[3/4] Detecting high-res image resolution...")
+        print(f"  Scanning: {args.highres_images_path}")
+        target_width, target_height = get_resolution(args.highres_images_path)
+        print(f"  Detected resolution: {target_width}x{target_height}")
+        print(f"  Will scale intrinsics from calibration ({raw_width}x{raw_height}) → high-res")
+    else:
+        # Use SLAM resolution for undistorted keyframes
+        print(f"\n[3/4] Using SLAM resolution for undistorted keyframes...")
+        target_width, target_height = slam_width, slam_height
+        print(f"  Target resolution: {target_width}x{target_height}")
+    
+    # =========================================================================
+    # 4. Save LichtFeld cameras with correct scaling
+    # =========================================================================
+    if args.use_highres_for_splatting:
+        print(f"\n[4/4] Saving LichtFeld cameras ({original_model} - for high-res splatting)...")
         
-        # Keep original model with distortion (scaled to SLAM resolution)
+        # Scale intrinsics directly from raw calibration to high-res
+        # Can't use resize_img() here because it only accepts 224 or 512
+        # Instead, manually compute scale factors
+        scale_x = target_width / raw_width
+        scale_y = target_height / raw_height
+        
+        K_target = K_raw.copy()
+        K_target[0, 0] = K_raw[0, 0] * scale_x  # fx
+        K_target[1, 1] = K_raw[1, 1] * scale_y  # fy
+        K_target[0, 2] = K_raw[0, 2] * scale_x  # cx
+        K_target[1, 2] = K_raw[1, 2] * scale_y  # cy
+        
+        # Keep original model with distortion
         splat_model = original_model
-        splat_params = [K_slam[0,0], K_slam[1,1], K_slam[0,2], K_slam[1,2]]
+        splat_params = [K_target[0,0], K_target[1,1], K_target[0,2], K_target[1,2]]
         if distortion:
             splat_params.extend(distortion)
+        
+        print(f"  Scaled intrinsics from {raw_width}x{raw_height} → {target_width}x{target_height}:")
+        print(f"    Scale factors: {scale_x:.4f}x, {scale_y:.4f}x")
+        print(f"    fx={K_target[0,0]:.2f}, fy={K_target[1,1]:.2f}")
+        print(f"    cx={K_target[0,2]:.2f}, cy={K_target[1,2]:.2f}")
     else:
-        print(f"\n[3/3] Saving LichtFeld cameras (PINHOLE - no distortion, for undistorted keyframes)...")
+        print(f"\n[4/4] Saving LichtFeld cameras (PINHOLE - no distortion, for undistorted keyframes)...")
+        
+        # Use SLAM-scaled intrinsics
+        target_width, target_height = slam_width, slam_height
+        K_target = K_slam
         
         # PINHOLE parameters (only fx, fy, cx, cy) - keyframes are already undistorted
         splat_model = 'PINHOLE'
-        splat_params = [K_slam[0,0], K_slam[1,1], K_slam[0,2], K_slam[1,2]]
+        splat_params = [K_target[0,0], K_target[1,1], K_target[0,2], K_target[1,2]]
     
     # Default output: cameras.bin/txt
     cameras_bin_path = splat_dir / 'cameras.bin'
@@ -304,8 +379,8 @@ def main():
         cameras_bin_path,
         cam['camera_id'],
         splat_model,
-        slam_width,
-        slam_height,
+        target_width,
+        target_height,
         splat_params
     )
     
@@ -313,8 +388,8 @@ def main():
         cameras_txt_path,
         cam['camera_id'],
         splat_model,
-        slam_width,
-        slam_height,
+        target_width,
+        target_height,
         splat_params
     )
     
@@ -362,10 +437,12 @@ def main():
     print(f"     - {cameras_bin_path}")
     print(f"     - {cameras_txt_path}")
     if args.use_highres_for_splatting:
-        print(f"     - Format: {splat_model} with distortion (SLAM resolution {slam_width}x{slam_height})")
-        print(f"     - Mode: High-res splatting (will be scaled to high-res by convert_intrinsics.py)")
+        print(f"     - Format: {splat_model} with distortion")
+        print(f"     - Resolution: {target_width}x{target_height} (high-res)")
+        print(f"     - Mode: High-res splatting (scaled directly from calibration)")
     else:
-        print(f"     - Format: {splat_model} no distortion (SLAM resolution {slam_width}x{slam_height})")
+        print(f"     - Format: {splat_model} no distortion")
+        print(f"     - Resolution: {target_width}x{target_height} (SLAM resolution)")
         print(f"     - Mode: Keyframe splatting (undistorted images from MASt3R-SLAM)")
     
     if args.keep_original:
@@ -379,7 +456,7 @@ def main():
     print(f"  ✓ MASt3R-SLAM keyframes are undistorted internally via cv2.remap()")
     if args.use_highres_for_splatting:
         print(f"  ✓ LichtFeld will use {splat_model} model (for distorted high-res images)")
-        print(f"  ✓ Intrinsics will be scaled to high-res by convert_intrinsics.py")
+        print(f"  ✓ Intrinsics scaled directly from calibration {raw_width}x{raw_height} → {target_width}x{target_height}")
         print(f"  ✓ Use --gut flag in LichtFeld ({splat_model} has distortion params)")
     else:
         print(f"  ✓ LichtFeld uses PINHOLE model (keyframes already undistorted)")

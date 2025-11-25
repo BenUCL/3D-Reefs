@@ -244,7 +244,7 @@ def main():
         '--images_path',
         type=str,
         required=True,
-        help='Path to directory containing raw images'
+        help='Path to directory containing downsampled images'
     )
     parser.add_argument(
         '--dataset',
