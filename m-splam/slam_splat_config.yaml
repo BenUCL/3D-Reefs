@@ -18,7 +18,7 @@ paths:
   # Raw images (high res, no modifications)
   original_images_path: "/home/ben/encode/data/mars_johns/left"
   # Downsampled images directory (used for SLAM))
-  images_path: "/home/ben/encode/data/mars_johns/left_downsampled_png"
+  images_path: "/home/ben/encode/data/mars_johns/left_png" # this is the highres pngs (not downsampled)
   # Directory where intermediate data and outputs will be stored
   intermediate_data_root: "/home/ben/encode/data/intermediate_data"
   # MASt3R-SLAM installation directory
