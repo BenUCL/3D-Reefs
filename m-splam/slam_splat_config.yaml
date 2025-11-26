@@ -4,7 +4,7 @@
 # python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "fix_intrinsics4"
+run_name: "fix_intrinsics5"
 
 # Pipeline Control
 pipeline:
@@ -15,7 +15,7 @@ pipeline:
 
 # Paths 
 paths:
-  # Raw images (high res, no modifications)
+  # Raw images (high res PNG's, no modifications)
   original_images_path: "/home/ben/encode/data/mars_johns/left_950_png"
   # Downsampled images directory (used for colmap) 
   images_path: "/home/ben/encode/data/mars_johns/left_950_png_downsampled"
@@ -47,7 +47,7 @@ intrinsics_conversion:
   # - MASt3R-SLAM outputs undistorted keyframes (~512px width) which are PINHOLE-compatible
   # - Original images retain lens distortion and need OPENCV/FISHEYE model
   # - If true: Also runs convert_intrinsics.py to scale intrinsics from low-res to high-res
-  use_highres_for_splatting: false #TODO: move to a global var?
+  use_highres_for_splatting: true #TODO: move to a global var?
   # run LFS with --gut if using this ^!
   
   # Also save original camera model as cameras_{MODEL}.bin/txt
@@ -90,6 +90,7 @@ gaussian_splatting:
   # Maximum splat count after densification
   max_cap: 1000000
   # Additional LichtFeld-Studio arguments
-  # Example: ["--random", "--save-every", "10000"]
-  extra_args: ["--gut"] ############################## BEWARE I HAVE GUT here
+  # Example: ["--gut", "--random", "--save-every", "10000"]
+  # TODO: add pose optimisation? I think LFS has this option
+  extra_args: [] 
 
