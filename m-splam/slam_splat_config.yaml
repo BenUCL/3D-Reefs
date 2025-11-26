@@ -4,7 +4,7 @@
 # python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "fixing_intrinsics3"
+run_name: "kiost1"
 
 # Pipeline Control
 pipeline:
@@ -16,7 +16,7 @@ pipeline:
 # Paths 
 paths:
   # Raw images (high res, no modifications)
-  original_images_path: "/home/ben/encode/data/mars_johns/left"
+  original_images_path: "/home/ben/encode/data/mars_johns/left_downsampled_png"
   # Downsampled images directory (used for SLAM))
   images_path: "/home/ben/encode/data/mars_johns/left_png" # this is the highres pngs (not downsampled)
   # Directory where intermediate data and outputs will be stored
@@ -57,9 +57,13 @@ intrinsics_conversion:
 mast3r_slam:
   # Config file (relative to mast3r_slam_root or absolute path)
   config: "/home/ben/encode/code/MASt3R-SLAM/config/base.yaml" #"config/base.yaml"
+  # Use calibrated camera intrinsics from Step 1
+  # If true: passes intrinsics.yaml to MASt3R-SLAM with --calib flag and sets use_calib: True
+  # If false: MASt3R-SLAM estimates intrinsics internally
+  use_calibration: true
   # Enable visualization (requires manual Ctrl+C to continue pipeline after SLAM completes)
   # Set to false for automated runs. TODO: Run visualization in separate process to avoid blocking.
-  enable_visualization: false
+  enable_visualization: true
   # Additional arguments to pass to MASt3R-SLAM (optional)
   # Example: ["--single_thread"]
   extra_args: []

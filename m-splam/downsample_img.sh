@@ -2,8 +2,8 @@
 # run: 
 # /home/bwilliams/encode/code/dev/downsample_img.sh
 
-SOURCE_DIR="/home/ben/encode/data/mars_johns/left"
-OUTPUT_DIR="/home/ben/encode/data/mars_johns/left_downsampled"
+SOURCE_DIR="/home/ben/encode/data/KIOST_vids/images_DJI_20250924_Camera01_D"
+OUTPUT_DIR="/home/ben/encode/data/KIOST_vids/downsampled_images_DJI_20250924_Camera01_D"
 
 # Check if ImageMagick is installed
 if ! command -v convert &> /dev/null; then
@@ -31,21 +31,23 @@ process_image() {
     local file="$1"
     local output_dir="$2"
     
-    # Get filename without path
+    # Get filename (e.g., image.png)
     local filename=$(basename "$file")
-    # Remove extension and add .jpg
-    local name="${filename%.*}"
-    local output_file="$output_dir/${name}.jpg"
     
+    # --- CHANGED HERE ---
+    # We use the original filename for the output, preserving the extension.
+    local output_file="$output_dir/$filename"
+    # --------------------
+
     # Skip if already processed
     if [[ -f "$output_file" ]]; then
         echo "SKIP: $filename (already exists)"
         return 0
     fi
     
-    # Downsample with max side 1600px and 80% quality using ImageMagick
-    # -resize 1600x1600> (> means only shrink, don't enlarge)
-    # -quality 80 for 80% JPEG quality
+    # Downsample with max side 1600px
+    # Note: -quality 80 behaves differently for PNG vs JPG, but works for both.
+    # For JPG it is visual quality. For PNG it is compression level.
     if convert "$file" -resize 1600x1600\> -quality 80 "$output_file" 2>/dev/null; then
         echo "✓ SUCCESS: $filename"
         return 0
@@ -81,10 +83,10 @@ echo "Starting parallel processing..."
 # Process images in parallel with progress bar
 printf '%s\n' "${image_files[@]}" | parallel -j "$max_jobs" --bar process_image {} '"$OUTPUT_DIR"'
 
-# Count results
-success_count=$(find "$OUTPUT_DIR" -name "*.jpg" | wc -l)
+# Count results (Changed to count all files, not just jpgs)
+success_count=$(find "$OUTPUT_DIR" -type f | wc -l)
 failed_count=$((total - success_count))
 
 echo ""
-echo "Done! Processed $success_count images successfully, $failed_count failed."
+echo "Done! Processed $success_count images successfully."
 echo "Images saved to $OUTPUT_DIR"
