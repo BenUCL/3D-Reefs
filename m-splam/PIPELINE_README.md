@@ -78,18 +78,20 @@ The pipeline supports two modes for Gaussian splatting, controlled by the `use_h
 The pipeline executes these steps in order (with timing reported for each):
 
 ### 1. COLMAP Intrinsics Estimation (`estimate_intrinsics.py`)
-- **What**: Calibrates camera intrinsics from first N downsampled images using COLMAP (coplmap fails on raw high res images so have been using the 1600x1400 images then scaling the intrinsics in step 2)
-- **Why**: Provides accurate focal length, principal point, and distortion parameters
+- **What**: Calibrates camera intrinsics from first N downsampled images using COLMAP (colmap fails on raw high res images so have been using the 1600x1400 images then scaling the intrinsics in step 2)
+- **Why**: Provides accurate focal length, principal point, and distortion parameters for MASt3R-SLAM
 - **Typical Duration**: 30s - 2min (depends on num_images and image size)
 - **Outputs**: 
   - `colmap_outputs/cameras.txt` - Camera parameters in COLMAP format
   - `colmap_outputs/calibration_summary.txt` - Summary with registration percentage
   - `colmap_outputs/sparse/0/` - Full COLMAP reconstruction (cameras, images, points)
+- **Calibration Usage**: If `mast3r_slam.use_calibration: true` in config, these intrinsics will be passed to MASt3R-SLAM
 
 ### 2. Intrinsics Conversion (`shuttle_intrinsics.py` + optional `convert_intrinsics.py`)
-- **What**: Converts COLMAP intrinsics into formats needed by downstream tools
-- **Why**: MASt3R-SLAM needs OPENCV camera model at raw resolution; LichtFeld needs a camera model matching image type
+- **What**: Converts COLMAP intrinsics into formats needed by downstream tools and generates `intrinsics.yaml` for MASt3R-SLAM
+- **Why**: MASt3R-SLAM needs OPENCV camera model with inline list format; LichtFeld needs a camera model matching image type
 - **Typical Duration**: <1s (shuttle_intrinsics) + 1-2s (convert_intrinsics if needed)
+- **Key Output**: `intrinsics.yaml` with format: `calibration: [fx, fy, cx, cy, k1, k2, p1, p2]` (matches MASt3R-SLAM expectations)
 - **Two Modes** (controlled by `use_highres_for_splatting` in config):
   
   **Mode A: Splat with M-SLAM Keyframes** (`use_highres_for_splatting: false`, default)
@@ -109,6 +111,9 @@ The pipeline executes these steps in order (with timing reported for each):
 - **What**: Runs visual SLAM on full image sequence
 - **Why**: Estimates camera poses and builds sparse 3D point cloud
 - **Typical Duration**: This is a slow step. On the lab 3090 I found approx. 2min for a dataset of 500 images with the default keyframe settings.
+- **Calibration Modes**:
+  - If `use_calibration: true`: Uses intrinsics.yaml from Step 2 (passed via `--calib` flag)
+  - If `use_calibration: false`: MASt3R-SLAM estimates intrinsics internally
 - **Outputs**:
   - `keyframes/` - Undistorted keyframe images selected by SLAM
   - `{dataset_name}.txt` - Camera poses in TUM format (timestamp tx ty tz qx qy qz qw)

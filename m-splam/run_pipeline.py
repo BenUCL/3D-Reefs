@@ -309,6 +309,8 @@ class PipelineRunner:
             - keyframes/{dataset_name}/ - Undistorted keyframe images
         
         Note: MASt3R-SLAM names outputs based on the images directory name, not run_name.
+        
+        Calibration: If use_calibration=true in config, passes intrinsics.yaml with --calib flag.
         """
         step_name = "3. MASt3R-SLAM"
         step_num = 3
@@ -359,10 +361,24 @@ class PipelineRunner:
             'python',
             str(mslam_root / 'main.py'),
             '--dataset', self.paths['images_path'],
-            '--config', str(config_path),
-            '--calib', str(self.run_dir / 'intrinsics.yaml')
+            '--config', str(config_path)
         ]
         
+        # Add calibration if enabled
+        if cfg.get('use_calibration', False):
+            intrinsics_yaml = self.run_dir / 'intrinsics.yaml'
+            if intrinsics_yaml.exists():
+                cmd.extend(['--calib', str(intrinsics_yaml)])
+                self.log(f"✓ Using calibrated intrinsics: {intrinsics_yaml}")
+            else:
+                # --- MODIFIED SECTION ---
+                error_msg = f"--calib was set to true but intrinsics.yaml not found at {intrinsics_yaml}"
+                self.log(f"❌ Error: {error_msg}") # Log it so it appears in your console/logs first
+                raise FileNotFoundError(error_msg) # This stops the process immediately
+                # ------------------------
+        else:
+            self.log(f"ℹ️  Calibration disabled - MASt3R-SLAM will estimate intrinsics internally")
+            
         # Disable visualization if requested (allows automated pipeline execution)
         if not cfg.get('enable_visualization', False):
             cmd.append('--no-viz')

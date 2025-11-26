@@ -158,8 +158,14 @@ def write_mast3r_yaml(output_path, width, height, K, distortion_params, model_na
         'calibration': calibration
     }
     
+    # Write with flow style (inline list) for calibration to match MASt3R-SLAM format
+    # Format: calibration: [fx, fy, cx, cy, k1, k2, p1, p2]
     with open(output_path, 'w') as f:
-        yaml.dump(intrinsics_dict, f, default_flow_style=False, sort_keys=False)
+        f.write(f"width: {intrinsics_dict['width']}\n")
+        f.write(f"height: {intrinsics_dict['height']}\n")
+        # Format calibration as inline list with proper spacing
+        calib_str = '[' + ', '.join([f'{x:.6g}' for x in calibration]) + ']'
+        f.write(f"calibration: {calib_str}\n")
     
     distortion_str = ', '.join([f'{d:.6f}' for d in distortion_params]) if has_distortion else 'none'
     print(f"✓ Saved MASt3R-SLAM intrinsics ({model_name}): {output_path}")
