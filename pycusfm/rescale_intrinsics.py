@@ -1,3 +1,11 @@
+"""
+Rescale camera intrinsics from a COLMAP-style camera file.
+
+We use colmap to estimate intrinsics of the orignal imagery. However, colmap fails on high res 
+images, so we downsample to 1600x1400 to get it working.
+We must then scale these back up to pass to PyCuSFM and splatting.
+"""
+
 import os
 import cv2
 import glob
@@ -6,7 +14,7 @@ import sys
 # --- CONFIGURATION ---
 INPUT_CAM_FILE = "/home/ben/encode/data/intermediate_data/pycusfm1/cameras_1600x1400.txt"
 IMAGE_DIR = "/home/ben/encode/data/intermediate_data/pycusfm1/images"
-OUTPUT_CAM_FILE = "/home/ben/encode/data/intermediate_data/pycusfm1/cameras_5568x4872_.txt"
+OUTPUT_CAM_FILE = "/home/ben/encode/data/intermediate_data/pycusfm1/cameras_5568x4872.txt"
 
 def get_image_resolution(image_dir):
     """
