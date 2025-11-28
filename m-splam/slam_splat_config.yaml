@@ -63,7 +63,7 @@ mast3r_slam:
   use_calibration: true
   # Enable visualization (requires manual Ctrl+C to continue pipeline after SLAM completes)
   # Set to false for automated runs. TODO: Run visualization in separate process to avoid blocking.
-  enable_visualization: true
+  enable_visualization: false
   # Additional arguments to pass to MASt3R-SLAM (optional)
   # Example: ["--single_thread"]
   extra_args: []
@@ -81,7 +81,7 @@ ply_conversion:
   # Lower = faster, less memory. Higher = more detail
   sample_percentage: 5.0 #If rerunning, be sure to del or rename the original file, otherwise it will skip this step
 
-# Step 6: Gaussian Splatting Training (train_splat.py)
+# Step 7: Gaussian Splatting Training (train_splat.py)
 gaussian_splatting:
   # Run in headless mode (no GUI)
   headless: true
@@ -91,6 +91,8 @@ gaussian_splatting:
   max_cap: 1000000
   # Additional LichtFeld-Studio arguments
   # Example: ["--gut", "--random", "--save-every", "10000"]
-  # TODO: add pose optimisation? I think LFS has this option
-  extra_args: [] 
+  # Pose optimization: Use "--pose-opt", "direct" or "--pose-opt", "mlp"
+  # - direct: Optimizes camera pose offsets directly (faster)
+  # - mlp: Uses neural network to predict pose offsets (better results, slower)
+  extra_args: ["--pose-opt", "direct"] 
 

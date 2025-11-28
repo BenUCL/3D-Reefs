@@ -7,7 +7,7 @@ from scipy.spatial.transform import Slerp
 
 # --- CONFIGURATION ---
 EXISTING_SPARSE_DIR = "/home/ben/encode/data/intermediate_data/fix_intrinsics5/for_splat/sparse/0"
-ALL_IMAGES_DIR = "/home/ben/encode/data/intermediate_data/pycusfm1/images"
+ALL_IMAGES_DIR = "/home/ben/encode/data/intermediate_data/pycusfm1/for_splat/images"
 
 # Outputs
 OUTPUT_TXT_PATH = "/home/ben/encode/data/intermediate_data/pycusfm1/images_interpolated.txt"

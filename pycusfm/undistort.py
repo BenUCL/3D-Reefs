@@ -19,7 +19,7 @@ IMAGES_DIR = "/home/ben/encode/data/intermediate_data/pycusfm1/for_splat/images"
 INPUT_CAMERAS_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/cameras_5568x4872.txt"
 
 # The output location for the new PINHOLE camera file
-OUTPUT_CAMERAS_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/for_pycusfm/cameras.txt"
+OUTPUT_CAMERAS_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/for_pycusfm/cameras_undistorted.txt"
 
 def read_opencv_intrinsics(path):
     print(f"Reading intrinsics from: {path}")

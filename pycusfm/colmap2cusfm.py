@@ -6,13 +6,13 @@ from scipy.spatial.transform import Rotation as R
 
 # --- CONFIGURATION ---
 # 1. Use the INTERPOLATED IMAGES (The list of 274 frames)
-INPUT_IMAGES_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/images_interpolated.txt"
+INPUT_IMAGES_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/for_pycusfm/images_interpolated.txt"
 
 # 2. Use the SCALED INTRINSICS (The file we created with the correct resolution and distortion)
-INPUT_CAMERAS_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/cameras_5568x4872.txt"
+INPUT_CAMERAS_TXT = "/home/ben/encode/data/intermediate_data/pycusfm1/for_pycusfm/cameras_undistorted.txt"
 
 # 3. Output Location
-OUTPUT_JSON = "/home/ben/encode/data/intermediate_data/pycusfm1/frames_meta.json"
+OUTPUT_JSON = "/home/ben/encode/data/intermediate_data/pycusfm1/for_pycusfm/frames_meta.json"
 
 # --- HELPERS ---
 def natural_keys(text):
