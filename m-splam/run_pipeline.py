@@ -272,13 +272,11 @@ class PipelineRunner:
                 # 1. Update images.txt/bin with high-res filenames (keyframes only at this point)
                 if not self.step_5b_update_highres_poses(): return False
                 
-                # 2. Prepare keyframe images (needed for interpolation reference)
-                if not self.step_5c_prepare_highres_images(): return False
-                
-                # 3. Interpolate poses for ALL images
+                # 2. Interpolate poses for ALL images (creates pose data for all 274 images)
                 if not self.step_5d_interpolate_poses(): return False
                 
-                # 4. Process ALL high-res images
+                # 3. Process ALL high-res images (undistort + crop all 274 images)
+                # Note: Skipping step_5c since step_5e will process everything including keyframes
                 if not self.step_5e_process_all_highres_images(): return False
             else:
                 # KEYFRAME-ONLY MODE: Standard high-res pipeline
@@ -338,14 +336,17 @@ class PipelineRunner:
         step_name = "5e. Process ALL High-Res Images"
         self.log(f"\n{'#'*70}\n# {step_name}\n{'#'*70}")
         
-        # First clean up keyframe-only images
+        # Note: In interpolate mode, step 5c is skipped so for_splat/images should be empty
+        # Just verify and clean if needed
         images_dir = self.run_dir / 'for_splat' / 'images'
-        self.log(f"🧹 Cleaning up keyframe-only images from {images_dir.name}...")
         if images_dir.exists():
-            for file in images_dir.iterdir():
-                if file.is_file():
-                    file.unlink()
-            self.log(f"   ✓ Directory emptied (ready for all high-res images)")
+            existing_files = list(images_dir.iterdir())
+            if existing_files:
+                self.log(f"🧹 Cleaning up {len(existing_files)} existing images from {images_dir.name}...")
+                for file in existing_files:
+                    if file.is_file():
+                        file.unlink()
+                self.log(f"   ✓ Directory emptied")
         
         cmd = [
             'python', str(Path(__file__).parent / 'prepare_highres_splat.py'),

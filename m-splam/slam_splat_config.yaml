@@ -4,7 +4,7 @@
 # python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "full3Dpcd_5m_splats_pose-opt_kfs"
+run_name: "full_imagery_pose-opt"
 
 # Pipeline Control
 pipeline:
@@ -16,14 +16,14 @@ pipeline:
   # When true: Processes all original images with interpolated poses between keyframes
   # Requires: use_highres_for_splatting: true and paths.original_images_path set
   # Result: Enables pose optimization during splatting for better alignment
-  interpolate_poses: false
+  interpolate_poses: true
 
 # Paths 
 paths:
   # Raw images (high res PNG or JPG, no modifications)
-  original_images_path: "/home/ben/encode/data/mars_johns/left_950_png"
+  original_images_path: "/home/ben/encode/data/mars_johns/left_274_png"
   # Downsampled images directory (used for colmap) 
-  images_path: "/home/ben/encode/data/mars_johns/left_950_png_downsampled"
+  images_path: "/home/ben/encode/data/mars_johns/left_274_png_downsampled"
   # Directory where intermediate data and outputs will be stored
   intermediate_data_root: "/home/ben/encode/data/intermediate_data"
   # MASt3R-SLAM installation directory
@@ -82,9 +82,9 @@ pose_conversion:
 
 # Step 6: PLY to COLMAP points3D (mslam_ply_to_points3d.py)
 ply_conversion:
-  # Percentage of points to sample (10% = ~500K-1M points)
+  # Percentage of points to sample from the m-slam point cloud.
   # Lower = faster, less memory. Higher = more detail
-  sample_percentage: 50.0 #If rerunning, be sure to del or rename the original file, otherwise it will skip this step
+  sample_percentage: 10.0
 
 # Step 7: Gaussian Splatting Training (train_splat.py)
 gaussian_splatting:
@@ -99,7 +99,7 @@ gaussian_splatting:
   # Set to null (no quotes) to disable pose optimization
   pose_optimization_method: "mlp"
   # Additional LichtFeld-Studio arguments
-  # Example: ["--random", "--save-every", "10000"]
+  # Example: ["--random"]
   # Note: If interpolate_poses is true, --pose-opt will be added automatically based on pose_optimization_method
   extra_args: []
 

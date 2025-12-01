@@ -5,6 +5,7 @@ This directory contains an automated pipeline that orchestrates the complete wor
 ## TODO
 - Integrate conversion of JPG's to PNGS's and any downsampling applied to images (used for colmap intrinsics estimate).
 - Clean whitespace from images names right at the very start.
+- Also see LFS notes that there is a max images size, there are some notes [here](https://github.com/MrNeRF/LichtFeld-Studio/wiki/Frequently-Asked-Questions#my-cpu-is-heavily-used-and-at-100-all-the-time-is-this-normal) under "My CPU is heavily used and at 100%", a bit unclear what max size is but consider downsampling to this for raw images.
 - m-slam outputs keyframe filenames with timestamps, not the original image name. This has been fixed for the high-res image option, but not for standard (which uses the raw keyframes output by m-slam).
 - Integrate in the interpolation of camera poses between keyframes and optimisation of these using 
 
@@ -115,11 +116,12 @@ The pipeline supports two modes for Gaussian splatting, controlled by the `use_h
 **Pipeline Flow:**
 1. Steps 1-5: Standard pipeline up to pose conversion
 2. Step 5b: Updates images.txt with keyframe filenames
-3. Step 5c: Processes keyframe images with undistortion
-4. **Step 5d**: Interpolates poses for ALL images (backs up keyframe-only pose graph to `keyframe_poses/`)
-5. **Step 5e**: Processes ALL high-res images with undistortion/cropping
-6. Step 6: Point cloud conversion
-7. Step 7: Gaussian splatting with **automatic `--pose-opt {method}` flag**
+3. **Step 5d**: Interpolates poses for ALL images (backs up keyframe-only poses to `keyframe_poses/`)
+4. **Step 5e**: Processes ALL high-res images with undistortion/cropping (includes keyframes)
+5. Step 6: Point cloud conversion
+6. Step 7: Gaussian splatting with **automatic `--pose-opt {method}` flag**
+
+**Note:** Step 5c is automatically **skipped** in interpolation mode since Step 5e processes all images (including keyframes). This avoids redundant processing of the 58 keyframe images.
 
 **Pose Optimization Methods** (controlled by `gaussian_splatting.pose_optimization_method`):
 - `"direct"`: Optimizes pose offsets directly (faster, less memory)

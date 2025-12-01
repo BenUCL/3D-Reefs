@@ -288,10 +288,10 @@ def write_colmap_images_bin(output_path, images):
     Binary format:
         num_images (uint64)
         For each image:
-            image_id (uint64)
+            image_id (uint32)  ← IMPORTANT: uint32, not uint64!
             qw, qx, qy, qz (double[4])
             tx, ty, tz (double[3])
-            camera_id (uint64)
+            camera_id (uint32)  ← IMPORTANT: uint32, not uint64!
             name (null-terminated string)
             num_points2D (uint64) = 0
     """
@@ -300,8 +300,8 @@ def write_colmap_images_bin(output_path, images):
         f.write(struct.pack('<Q', len(images)))
         
         for img in images:
-            # Image ID (uint64)
-            f.write(struct.pack('<Q', img['id']))
+            # Image ID (uint32) - FIXED: was uint64
+            f.write(struct.pack('<I', img['id']))
             
             # Quaternion (4 doubles): QW, QX, QY, QZ
             q = img['qvec']
@@ -311,8 +311,8 @@ def write_colmap_images_bin(output_path, images):
             t = img['tvec']
             f.write(struct.pack('<ddd', t[0], t[1], t[2]))
             
-            # Camera ID (uint64)
-            f.write(struct.pack('<Q', img['camera_id']))
+            # Camera ID (uint32) - FIXED: was uint64
+            f.write(struct.pack('<I', img['camera_id']))
             
             # Name (null-terminated string)
             name_bytes = img['name'].encode('utf-8') + b'\x00'
