@@ -262,20 +262,39 @@ class PipelineRunner:
         
         # HIGH-RES LOGIC: Cleanup and Prepare
         use_highres = self.config.get('intrinsics_conversion', {}).get('use_highres_for_splatting', False)
+        interpolate_poses = self.config.get('pipeline', {}).get('interpolate_poses', False)
+        
         if result and use_highres:
-            # 1. CLEANUP: Remove the low-res images we just copied
-            images_dir = self.run_dir / 'for_splat' / 'images'
-            self.log(f"🧹 High-Res Mode: Cleaning up low-res keyframes from {images_dir.name}...")
-            # Delete everything in the folder
-            if images_dir.exists():
-                for file in images_dir.iterdir():
-                    if file.is_file():
-                        file.unlink()
-                self.log(f"   ✓ Directory emptied (ready for high-res images)")
+            if interpolate_poses:
+                # INTERPOLATE MODE: Process ALL images, not just keyframes
+                self.log(f"📊 Interpolate Poses Mode: Processing ALL images with interpolated poses")
+                
+                # 1. Update images.txt/bin with high-res filenames (keyframes only at this point)
+                if not self.step_5b_update_highres_poses(): return False
+                
+                # 2. Prepare keyframe images (needed for interpolation reference)
+                if not self.step_5c_prepare_highres_images(): return False
+                
+                # 3. Interpolate poses for ALL images
+                if not self.step_5d_interpolate_poses(): return False
+                
+                # 4. Process ALL high-res images
+                if not self.step_5e_process_all_highres_images(): return False
+            else:
+                # KEYFRAME-ONLY MODE: Standard high-res pipeline
+                # 1. CLEANUP: Remove the low-res images we just copied
+                images_dir = self.run_dir / 'for_splat' / 'images'
+                self.log(f"🧹 High-Res Mode: Cleaning up low-res keyframes from {images_dir.name}...")
+                # Delete everything in the folder
+                if images_dir.exists():
+                    for file in images_dir.iterdir():
+                        if file.is_file():
+                            file.unlink()
+                    self.log(f"   ✓ Directory emptied (ready for high-res images)")
 
-            # 2. Run High-Res Steps
-            if not self.step_5b_update_highres_poses(): return False
-            if not self.step_5c_prepare_highres_images(): return False
+                # 2. Run High-Res Steps
+                if not self.step_5b_update_highres_poses(): return False
+                if not self.step_5c_prepare_highres_images(): return False
             
         return result
     
@@ -299,7 +318,41 @@ class PipelineRunner:
             'python', str(Path(__file__).parent / 'prepare_highres_splat.py'),
             '--dataset', self.run_name,
             '--highres_dir', self.paths['original_images_path'],
-            '--intrinsics', str(self.run_dir / 'intrinsics.yaml')
+            '--intrinsics', str(self.run_dir / 'intrinsics.yaml'),
+            '--mode', 'keyframes'
+        ]
+        return self.run_command(cmd, step_name)
+    
+    def step_5d_interpolate_poses(self):
+        step_name = "5d. Interpolate Poses for All Images"
+        self.log(f"\n{'#'*70}\n# {step_name}\n{'#'*70}")
+        
+        cmd = [
+            'python', str(Path(__file__).parent / 'interpolate_all_poses.py'),
+            '--dataset', self.run_name,
+            '--original-images', self.paths['original_images_path']
+        ]
+        return self.run_command(cmd, step_name)
+    
+    def step_5e_process_all_highres_images(self):
+        step_name = "5e. Process ALL High-Res Images"
+        self.log(f"\n{'#'*70}\n# {step_name}\n{'#'*70}")
+        
+        # First clean up keyframe-only images
+        images_dir = self.run_dir / 'for_splat' / 'images'
+        self.log(f"🧹 Cleaning up keyframe-only images from {images_dir.name}...")
+        if images_dir.exists():
+            for file in images_dir.iterdir():
+                if file.is_file():
+                    file.unlink()
+            self.log(f"   ✓ Directory emptied (ready for all high-res images)")
+        
+        cmd = [
+            'python', str(Path(__file__).parent / 'prepare_highres_splat.py'),
+            '--dataset', self.run_name,
+            '--highres_dir', self.paths['original_images_path'],
+            '--intrinsics', str(self.run_dir / 'intrinsics.yaml'),
+            '--mode', 'all'
         ]
         return self.run_command(cmd, step_name)
     
@@ -355,6 +408,17 @@ class PipelineRunner:
         if self.splat_overrides.get('headless', cfg.get('headless', True)): cmd.append('--headless')
         cmd.extend(['-i', str(iterations)])
         cmd.extend(['--max-cap', str(self.splat_overrides.get('max_cap', cfg['max_cap']))])
+        
+        # Add pose optimization if interpolate_poses is enabled
+        interpolate_poses = self.config.get('pipeline', {}).get('interpolate_poses', False)
+        if interpolate_poses:
+            pose_opt_method = cfg.get('pose_optimization_method', 'mlp')
+            if pose_opt_method in ['direct', 'mlp']:
+                self.log(f"📍 Adding pose optimization: --pose-opt {pose_opt_method}")
+                cmd.extend(['--pose-opt', pose_opt_method])
+            elif pose_opt_method is not None:
+                self.log(f"⚠️  Warning: Unknown pose optimization method '{pose_opt_method}', skipping")
+        
         cmd.extend(self.splat_overrides.get('extra_args', cfg.get('extra_args', [])))
         
         result = self.run_command(cmd, step_name)
@@ -370,6 +434,8 @@ class PipelineRunner:
             (5, "Pose Conversion", self.step_5_pose_conversion),
             ("5b", "Update High-Res Poses", self.step_5b_update_highres_poses),
             ("5c", "Prep High-Res Images", self.step_5c_prepare_highres_images),
+            ("5d", "Interpolate Poses", self.step_5d_interpolate_poses),
+            ("5e", "Process All High-Res Images", self.step_5e_process_all_highres_images),
             (6, "PLY Conversion", self.step_6_ply_conversion),
             (7, "Gaussian Splatting", self.step_7_gaussian_splatting)
         ]
