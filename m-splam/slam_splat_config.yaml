@@ -4,7 +4,7 @@
 # python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "fix_intrinsics5"
+run_name: "5m_splats"
 
 # Pipeline Control
 pipeline:
@@ -15,7 +15,7 @@ pipeline:
 
 # Paths 
 paths:
-  # Raw images (high res PNG's, no modifications)
+  # Raw images (high res PNG or JPG, no modifications)
   original_images_path: "/home/ben/encode/data/mars_johns/left_950_png"
   # Downsampled images directory (used for colmap) 
   images_path: "/home/ben/encode/data/mars_johns/left_950_png_downsampled"
@@ -40,15 +40,15 @@ intrinsics_estimation:
 # Step 2: Intrinsics Conversion (shuttle_intrinsics.py)
 intrinsics_conversion:
   # Use high-resolution original images for splatting?
-  # - true:  Use original high-res images (distorted) → Keeps OPENCV model, scales intrinsics to high-res
-  # - false: Use MASt3R-SLAM keyframes (undistorted) → Converts to PINHOLE model, uses SLAM resolution
+  # - false: Use M-SLAM keyframes (~512px, undistorted) → Step 2 writes PINHOLE cameras.txt
+  # - true:  Use original high-res images → Step 5c undistorts, crops, and writes PINHOLE cameras.txt
   # 
   # Technical details:
-  # - MASt3R-SLAM outputs undistorted keyframes (~512px width) which are PINHOLE-compatible
-  # - Original images retain lens distortion and need OPENCV/FISHEYE model
-  # - If true: Also runs convert_intrinsics.py to scale intrinsics from low-res to high-res
-  use_highres_for_splatting: true #TODO: move to a global var?
-  # run LFS with --gut if using this ^!
+  # - Both modes produce PINHOLE cameras (undistorted images) for splatting
+  # - Mode A: M-SLAM keyframes are pre-undistorted, Step 2 writes cameras.txt immediately
+  # - Mode B: Step 5c undistorts high-res images using cv2.remap(), then writes cameras.txt
+  # - NO --gut flag needed in either mode (PINHOLE has no distortion parameters)
+  use_highres_for_splatting: true
   
   # Also save original camera model as cameras_{MODEL}.bin/txt
   keep_original: false
@@ -88,11 +88,11 @@ gaussian_splatting:
   # Number of training iterations
   iterations: 20000
   # Maximum splat count after densification
-  max_cap: 1000000
+  max_cap: 5000000
   # Additional LichtFeld-Studio arguments
-  # Example: ["--gut", "--random", "--save-every", "10000"]
+  # Example: ["--random", "--save-every", "10000"]
   # Pose optimization: Use "--pose-opt", "direct" or "--pose-opt", "mlp"
   # - direct: Optimizes camera pose offsets directly (faster)
   # - mlp: Uses neural network to predict pose offsets (better results, slower)
-  extra_args: ["--pose-opt", "direct"] 
+  extra_args: []
 

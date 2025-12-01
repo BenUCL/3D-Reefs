@@ -2,16 +2,22 @@
 """
 prepare_highres_splat.py
 
+PURPOSE: Apply the same undistortion and cropping to high-res images that M-SLAM
+         applied to low-res images, ensuring geometric consistency.
+
 Inputs:
-  - High-Res Raw Images
-  - Low-Res intrinsics.yaml (from M-SLAM input)
-  - keyframe_mapping.txt
+  - High-Res Raw Images (with lens distortion, e.g., 5568x4872 GoPro JPG/PNG)
+  - Low-Res intrinsics.yaml (OPENCV model with distortion, from M-SLAM input)
+  - keyframe_mapping.txt (maps timestamps to original filenames)
 
 Actions:
-  1. Scales Low-Res Intrinsics -> High-Res.
-  2. Undistorts High-Res Images.
-  3. Crops High-Res Images (matching M-SLAM logic).
-  4. Outputs High-Res PINHOLE cameras.txt.
+  1. Scales Low-Res Intrinsics → High-Res (e.g., 1600x1400 → 5568x4872)
+  2. Undistorts High-Res Images using cv2.remap() (removes lens distortion)
+  3. Crops High-Res Images using M-SLAM's center-crop logic
+  4. Outputs High-Res PINHOLE cameras.txt (no distortion - images now distortion-free)
+
+Result: High-res images with identical geometry to M-SLAM keyframes, just higher resolution.
+        Final camera model is PINHOLE because all distortion has been removed.
 """
 import argparse
 import cv2
