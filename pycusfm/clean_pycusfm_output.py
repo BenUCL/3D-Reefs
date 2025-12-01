@@ -1,3 +1,5 @@
+#TODO: the input images.txt has loads of extra numbers after each images vector. Might be source of issue.
+
 import os
 import shutil
 
