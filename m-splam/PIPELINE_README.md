@@ -82,6 +82,50 @@ The pipeline supports two modes for Gaussian splatting, controlled by the `use_h
 - Step 5b: Updates COLMAP images.txt/bin with high-res filenames (pose data unchanged)
 - Step 5c: Undistorts, crops, and copies high-res keyframe images + writes PINHOLE cameras.txt/bin
 
+### Mode C: Pose Interpolation with All Images (`interpolate_poses: true`)
+**Best for:** Maximum coverage and pose refinement - processes ALL images (not just keyframes) with interpolated poses that are optimized during splatting.
+
+**Requirements:**
+- Must have `use_highres_for_splatting: true` 
+- Must set `pipeline.interpolate_poses: true` in config
+- Must set `paths.original_images_path` to original images directory
+- Must Set (without it will run but the poses are guesstimated so 3DGS will be poor) `gaussian_splatting.pose_optimization_method: "mlp"` or `"direct"`
+
+**How It Works:**
+1. M-SLAM tracks on keyframes only (sparse coverage, e.g., 58 out of 274 images)
+2. Pipeline identifies which original images were keyframes using `keyframe_mapping.txt`
+3. For non-keyframe images, poses are **linearly interpolated** between nearest keyframes:
+   - Translation: Linear interpolation between keyframe positions
+   - Rotation: SLERP (Spherical Linear Interpolation) for smooth rotation
+4. ALL images are processed with M-SLAM's undistortion and cropping
+5. During splatting, `--pose-opt` flag enables pose refinement to fix interpolation errors
+
+**Advantages:**
+- Dense image coverage (all frames used, not just keyframes)
+- Enables pose optimization during splatting (corrects interpolation errors)
+- Better geometric coverage for complex scenes
+- Can recover fine details between keyframes
+
+**Disadvantages:**
+- Longer processing time (all images processed)
+- More GPU memory required
+- Longer splatting training time
+- Initial interpolated poses may be inaccurate (corrected by pose optimization)
+
+**Pipeline Flow:**
+1. Steps 1-5: Standard pipeline up to pose conversion
+2. Step 5b: Updates images.txt with keyframe filenames
+3. Step 5c: Processes keyframe images with undistortion
+4. **Step 5d**: Interpolates poses for ALL images (backs up keyframe-only pose graph to `keyframe_poses/`)
+5. **Step 5e**: Processes ALL high-res images with undistortion/cropping
+6. Step 6: Point cloud conversion
+7. Step 7: Gaussian splatting with **automatic `--pose-opt {method}` flag**
+
+**Pose Optimization Methods** (controlled by `gaussian_splatting.pose_optimization_method`):
+- `"direct"`: Optimizes pose offsets directly (faster, less memory)
+- `"mlp"`: Uses neural network to predict offsets (better results, slower, more memory)
+- `null`: Disables pose optimization (not recommended for interpolated poses)
+
 
 ## Pipeline Steps
 
@@ -161,21 +205,63 @@ The pipeline executes these steps in order (with timing reported for each):
   - `mslam_logs/keyframe_mapping_full.txt` - Extended mapping with both name formats
 - **Key Detail**: Only the NAME field changes; all pose data (rotation, translation) remains identical
 
-### 5c. Prepare High-Res Images (`prepare_highres_splat.py`) - Auto if `use_highres_for_splatting: true`
+### 5c. Prepare High-Res Images (`prepare_highres_splat.py --mode keyframes`) - Auto if `use_highres_for_splatting: true`
 - **What**: Undistorts, crops, and copies high-resolution keyframe images + writes PINHOLE camera model
 - **Why**: Applies the same geometric preprocessing to high-res images that M-SLAM applied to low-res tracking images
 - **Typical Duration**: approx. 1 sec per image (depends on resolution and I/O)
+- **Mode**: `--mode keyframes` (processes only keyframe images from keyframe_mapping.txt)
 - **Process**:
   1. Reads low-res intrinsics.yaml (OPENCV with distortion parameters)
   2. Scales intrinsics to high-res dimensions (e.g., 1600x1400 → 5568x4872)
   3. Computes undistortion maps using `cv2.getOptimalNewCameraMatrix()` and `cv2.initUndistortRectifyMap()`
-  4. Undistorts each high-res image using `cv2.remap()` (removes lens distortion)
-  5. Applies M-SLAM's center-crop logic to match aspect ratio requirements
-  6. Writes final PINHOLE cameras.txt/bin (no distortion parameters - images now distortion-free)
+  4. Identifies keyframe images from `keyframe_mapping.txt`
+  5. Undistorts each high-res keyframe using `cv2.remap()` (removes lens distortion)
+  6. Applies M-SLAM's center-crop logic to match aspect ratio requirements
+  7. Writes final PINHOLE cameras.txt/bin (no distortion parameters - images now distortion-free)
 - **Outputs**:
   - `for_splat/images/` - High-res keyframe images, undistorted and cropped (e.g., 5568x4872 → 5568x4872 undistorted → 5568x4872 cropped)
   - `for_splat/sparse/0/cameras.txt/bin` - PINHOLE model with adjusted intrinsics (overwrites any existing)
 - **Key Detail**: Final resolution and intrinsics account for both undistortion (using cv2's optimal new camera matrix) and M-SLAM's center cropping, ensuring geometric consistency with low-res tracking
+
+### 5d. Interpolate Poses (`interpolate_all_poses.py`) - Auto if `interpolate_poses: true`
+- **What**: Generates camera poses for ALL images by interpolating between keyframe poses
+- **Why**: Provides dense pose coverage for all frames, enabling pose optimization during splatting to refine interpolation errors
+- **Typical Duration**: <1s (pose computation is fast)
+- **Process**:
+  1. Reads keyframe poses from existing `images.txt/bin` (keyframes only at this point)
+  2. Reads `keyframe_mapping.txt` to identify which original images are keyframes
+  3. Scans `original_images_path` to get complete list of ALL images
+  4. For each non-keyframe image, interpolates pose between nearest keyframes:
+     - **Translation**: Linear interpolation `t_interp = (1-α)*t_a + α*t_b`
+     - **Rotation**: SLERP (Spherical Linear Interpolation) for smooth quaternion interpolation
+     - **Alpha (α)**: Interpolation weight based on image index position between keyframes
+  5. Backs up keyframe-only poses to `for_splat/sparse/0/keyframe_poses/`
+  6. Writes new `images.txt/bin` with ALL images (keyframe poses exact, others interpolated)
+- **Outputs**:
+  - `for_splat/sparse/0/keyframe_poses/images.txt/bin` - Backup of original keyframe-only poses
+  - `for_splat/sparse/0/images.txt/bin` - Updated with ALL images (e.g., 274 images instead of 58 keyframes)
+- **Key Detail**: Interpolation provides good initialization but is not perfect; pose optimization during splatting (`--pose-opt`) refines these estimates
+- **Edge Cases**: Images before first keyframe or after last keyframe are clamped to nearest keyframe pose
+
+### 5e. Process All High-Res Images (`prepare_highres_splat.py --mode all`) - Auto if `interpolate_poses: true`
+- **What**: Processes ALL high-resolution images (not just keyframes) with same undistortion and cropping as Step 5c
+- **Why**: Provides complete image set for dense splatting with interpolated poses
+- **Typical Duration**: approx. 1 sec per image × total image count (e.g., 4-5 min for 274 images at 5568x4872)
+- **Mode**: `--mode all` (processes all images in original_images_path directory)
+- **Process**:
+  1. Cleans up keyframe-only images from `for_splat/images/`
+  2. Reads same intrinsics and computes same undistortion maps as Step 5c
+  3. Scans `original_images_path` for ALL images (naturally sorted by filename)
+  4. Processes ALL images (not just keyframes):
+     - Undistorts using `cv2.remap()`
+     - Applies M-SLAM's center-crop
+     - Saves to `for_splat/images/`
+  5. Writes PINHOLE cameras.txt/bin (same as 5c, but covers all images)
+- **Outputs**:
+  - `for_splat/images/` - ALL high-res images, undistorted and cropped (e.g., 274 images at 5568x4872)
+  - `for_splat/sparse/0/cameras.txt/bin` - PINHOLE model (same intrinsics for all images)
+- **Key Detail**: Uses identical preprocessing logic to Step 5c, ensuring all images have consistent geometry regardless of mode
+- **Storage Note**: Requires significantly more disk space than keyframe-only mode (e.g., 274 images vs 58 keyframes)
 
 ### 6. PLY to points3D Conversion (`mslam_ply_to_points3d.py`)
 - **What**: Converts MASt3R point cloud to COLMAP points3D.bin
