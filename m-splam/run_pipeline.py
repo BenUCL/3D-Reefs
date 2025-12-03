@@ -410,15 +410,13 @@ class PipelineRunner:
         cmd.extend(['-i', str(iterations)])
         cmd.extend(['--max-cap', str(self.splat_overrides.get('max_cap', cfg['max_cap']))])
         
-        # Add pose optimization if interpolate_poses is enabled
-        interpolate_poses = self.config.get('pipeline', {}).get('interpolate_poses', False)
-        if interpolate_poses:
-            pose_opt_method = cfg.get('pose_optimization_method', 'mlp')
-            if pose_opt_method in ['direct', 'mlp']:
-                self.log(f"📍 Adding pose optimization: --pose-opt {pose_opt_method}")
-                cmd.extend(['--pose-opt', pose_opt_method])
-            elif pose_opt_method is not None:
-                self.log(f"⚠️  Warning: Unknown pose optimization method '{pose_opt_method}', skipping")
+        # Add pose optimization if pose_optimization_method is set (works with or without interpolation)
+        pose_opt_method = cfg.get('pose_optimization_method')
+        if pose_opt_method in ['direct', 'mlp']:
+            self.log(f"📍 Adding pose optimization: --pose-opt {pose_opt_method}")
+            cmd.extend(['--pose-opt', pose_opt_method])
+        elif pose_opt_method is not None:
+            self.log(f"⚠️  Warning: Unknown pose optimization method '{pose_opt_method}', skipping --pose-opt")
         
         cmd.extend(self.splat_overrides.get('extra_args', cfg.get('extra_args', [])))
         
