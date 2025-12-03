@@ -4,7 +4,7 @@
 # python /home/ben/encode/code/3D-Reefs/m-splam/run_pipeline.py --config /home/ben/encode/code/3D-Reefs/m-splam/slam_splat_config.yaml --only 1
 
 # Unique identifier for this run (used for output directory naming)
-run_name: "full_imagery_pose-opt"
+run_name: "lRES_hKFs_5m_mlpOPT"
 
 # Pipeline Control
 pipeline:
@@ -16,7 +16,7 @@ pipeline:
   # When true: Processes all original images with interpolated poses between keyframes
   # Requires: use_highres_for_splatting: true and paths.original_images_path set
   # Result: Enables pose optimization during splatting for better alignment
-  interpolate_poses: true
+  interpolate_poses: false
 
 # Paths 
 paths:
@@ -53,7 +53,7 @@ intrinsics_conversion:
   # - Mode A: M-SLAM keyframes are pre-undistorted, Step 2 writes cameras.txt immediately
   # - Mode B: Step 5c undistorts high-res images using cv2.remap(), then writes cameras.txt
   # - NO --gut flag needed in either mode (PINHOLE has no distortion parameters)
-  use_highres_for_splatting: true
+  use_highres_for_splatting: false
   
   # Also save original camera model as cameras_{MODEL}.bin/txt
   keep_original: false
@@ -61,14 +61,14 @@ intrinsics_conversion:
 # Step 3: MASt3R-SLAM
 mast3r_slam:
   # Config file (relative to mast3r_slam_root or absolute path)
-  config: "/home/ben/encode/code/MASt3R-SLAM/config/base.yaml" #"config/base.yaml"
+  config: "/home/ben/encode/code/MASt3R-SLAM/config/more_keyframes.yaml" #"config/base.yaml"
   # Use calibrated camera intrinsics from Step 1
   # If true: passes intrinsics.yaml to MASt3R-SLAM with --calib flag and sets use_calib: True
   # If false: MASt3R-SLAM estimates intrinsics internally
   use_calibration: true
   # Enable visualization (requires manual Ctrl+C to continue pipeline after SLAM completes)
   # Set to false for automated runs. TODO: Run visualization in separate process to avoid blocking.
-  enable_visualization: false
+  enable_visualization: true
   # Additional arguments to pass to MASt3R-SLAM (optional)
   # Example: ["--single_thread"]
   extra_args: []
@@ -84,7 +84,7 @@ pose_conversion:
 ply_conversion:
   # Percentage of points to sample from the m-slam point cloud.
   # Lower = faster, less memory. Higher = more detail
-  sample_percentage: 10.0
+  sample_percentage: 5.0
 
 # Step 7: Gaussian Splatting Training (train_splat.py)
 gaussian_splatting:
@@ -94,12 +94,13 @@ gaussian_splatting:
   iterations: 20000
   # Maximum splat count after densification
   max_cap: 5000000
-  # Pose optimization method (only used when pipeline.interpolate_poses: true)
+  # Pose optimization method - refines camera poses during training
   # Options: "direct" (faster, optimizes offsets directly) or "mlp" (better results, uses neural network)
   # Set to null (no quotes) to disable pose optimization
+  # Works with keyframes or interpolated poses
   pose_optimization_method: "mlp"
   # Additional LichtFeld-Studio arguments
   # Example: ["--random"]
-  # Note: If interpolate_poses is true, --pose-opt will be added automatically based on pose_optimization_method
+  # Note: --pose-opt will be added automatically based on pose_optimization_method
   extra_args: []
 
