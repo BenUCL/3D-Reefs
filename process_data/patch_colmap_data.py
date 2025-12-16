@@ -2,29 +2,18 @@
 """
 patch_colmap_data.py
 
-Split large COLMAP reconstructions into smaller patches for gaussian splatting training.
+Split large COLMAP reconstructions into smaller spatial patches for gaussian splatting.
 
+This script analyzes camera positions and creates overlapping rectangular patches,
+splitting cameras.bin, images.bin, and optionally points3D.bin into separate directories.
 
 Usage:
-    # Using COLMAP sparse points (from points3D.bin)
-    python patch_colmap_data.py \
-        --sparse /path/to/sparse/0 \
-        --images /path/to/images \
-        --output /path/to/output \
-        --use-colmap-points \
-        --sample-percentage 10.0 \
-        --max-cameras 400 \
-        --buffer 0.1
+    python patch_colmap_data.py --config splat_config.yml
 
-    # Or use, separate dense point cloud (PLY)
-    python patch_colmap_data.py \
-        --sparse /path/to/sparse/0 \
-        --images /path/to/images \
-        --output /path/to/output \
-        --pointcloud /path/to/dense.ply \
-        --sample-percentage 10.0 \
-        --max-cameras 400 \
-        --buffer 0.1
+Configuration is read from splat_config.yml which contains:
+    - Paths (sparse, images, output)
+    - Patching parameters (max_cameras, buffer_meters)
+    - Point cloud options (use COLMAP points or external PLY)
 """
 
 import argparse
@@ -34,25 +23,35 @@ import pycolmap
 from pathlib import Path
 from wildflow import splat
 from typing import Dict, Any, List
+import yaml
+
+
+def load_config(config_path: Path) -> dict:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 
 class PatchConfig:
     """Configuration for patching COLMAP data."""
     
-    def __init__(self, args):
+    def __init__(self, config: dict):
+        # Extract patching config section
+        patch_cfg = config.get('patching', {})
+        
         # Input paths
-        self.sparse_path = Path(args.sparse)
-        self.images_path = Path(args.images)
-        self.pointcloud_path = Path(args.pointcloud) if args.pointcloud else None
+        self.sparse_path = Path(patch_cfg['sparse_dir'])
+        self.images_path = Path(patch_cfg['images_dir'])
+        self.pointcloud_path = Path(patch_cfg['pointcloud_path']) if patch_cfg.get('pointcloud_path') else None
         
         # Output path
-        self.output_path = Path(args.output)
+        self.output_path = Path(config['paths']['patches_dir'])
         
         # Patching settings
-        self.max_cameras = args.max_cameras
-        self.buffer_meters = args.buffer
-        self.sample_percentage = args.sample_percentage
-        self.use_colmap_points = args.use_colmap_points
+        self.max_cameras = patch_cfg.get('max_cameras', 1200)
+        self.buffer_meters = patch_cfg.get('buffer_meters', 0.8)
+        self.sample_percentage = patch_cfg.get('sample_percentage', 5.0)
+        self.use_colmap_points = patch_cfg.get('use_colmap_points', True)
         
         # Validate inputs
         self._validate()
@@ -231,51 +230,6 @@ def step3_split_pointcloud(config: PatchConfig, patches_list: List[Dict], min_z:
     return {"result": result}
 
 
-# TODO: Re-enable training step with LichtFeld-Studio
-# 
-# The original script used Postshot CLI for training. Below is the commented-out
-# training code for reference. When ready to add LichtFeld-Studio training:
-#
-# 1. Replace postshot_exe with path to LichtFeld-Studio executable
-# 2. Update command line arguments for LichtFeld-Studio format
-# 3. Adjust output paths and log parsing for LichtFeld-Studio
-# 4. Consider using run_lichtfeld.sh scripts if available
-#
-# Example LichtFeld-Studio command structure:
-#   ./lichtfeld-studio \
-#       --sparse /path/to/sparse/0 \
-#       --images /path/to/images \
-#       --output /path/to/output.ply \
-#       --iterations 30000 \
-#       --gpu 0
-#
-# Original Postshot training code:
-"""
-def train_patch(patch_idx, gpu_id, config):
-    paths = {
-        "sparse": config.output_path / f"p{patch_idx}" / "sparse" / "0",
-        "output": config.output_path / f"p{patch_idx}" / f"raw-p{patch_idx}.ply",
-        "log": config.output_path / f"p{patch_idx}" / f"train_p{patch_idx}_gpu{gpu_id}.log"
-    }
-    
-    cmd = [
-        config.postshot_exe, "train",
-        "-i", str(paths["sparse"] / "cameras.bin"),
-        "-i", str(paths["sparse"] / "images.bin"), 
-        "-i", str(paths["sparse"] / "points3D.bin"),
-        "-i", str(config.images_path),
-        "-p", "Splat3",
-        "--gpu", str(gpu_id),
-        "--train-steps-limit", str(config.train_steps),
-        "--show-train-error",
-        "--export-splat-ply", str(paths["output"])
-    ]
-    
-    # Training execution code...
-    # See patch_models.py for full implementation
-"""
-
-
 def print_summary(config: PatchConfig, patches_list: List[Dict]):
     """Print summary of what was created."""
     print(f"\n{'='*70}")
@@ -291,134 +245,68 @@ def print_summary(config: PatchConfig, patches_list: List[Dict]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Split COLMAP reconstruction into patches for gaussian splatting training",
+        description="Split COLMAP reconstruction into spatial patches for gaussian splatting",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Using COLMAP sparse points (fastest, no PLY needed)
-  python patch_colmap_data.py \\
-      --sparse /data/colmap/sparse/0 \\
-      --images /data/images \\
-      --output /data/patches \\
-      --use-colmap-points
+Example:
+  python patch_colmap_data.py --config splat_config.yml
 
-  # Using dense point cloud for better initialization
-  python patch_colmap_data.py \\
-      --sparse /data/colmap/sparse/0 \\
-      --images /data/images \\
-      --output /data/patches \\
-      --pointcloud /data/dense_pointcloud.ply \\
-      --sample-percentage 8.0
-
-  # Custom patching settings
-  python patch_colmap_data.py \\
-      --sparse /data/colmap/sparse/0 \\
-      --images /data/images \\
-      --output /data/patches \\
-      --use-colmap-points \\
-      --max-cameras 1000 \\
-      --buffer 1.5
+Configuration is read from splat_config.yml which should contain:
+  - patching.sparse_dir: Path to COLMAP sparse/0 directory
+  - patching.images_dir: Path to images directory
+  - paths.patches_dir: Output directory for patches
+  - patching.max_cameras: Maximum cameras per patch (default: 1200)
+  - patching.buffer_meters: Overlap between patches in meters (default: 0.8)
         """
     )
     
-    # Required arguments
-    parser.add_argument(
-        '--sparse',
-        type=str,
-        required=True,
-        help='Path to COLMAP sparse/0 directory (contains cameras.bin, images.bin, points3D.bin)'
-    )
-    parser.add_argument(
-        '--images',
-        type=str,
-        required=True,
-        help='Path to directory containing source images'
-    )
-    parser.add_argument(
-        '--output',
-        type=str,
-        required=True,
-        help='Output directory for patches (will create p0/, p1/, etc.)'
-    )
-    
-    # Optional arguments - Point cloud source (choose one)
-    point_cloud_group = parser.add_mutually_exclusive_group()
-    point_cloud_group.add_argument(
-        '--use-colmap-points',
-        action='store_true',
-        help='Use points3D.bin from COLMAP sparse reconstruction (default if no --pointcloud)'
-    )
-    point_cloud_group.add_argument(
-        '--pointcloud',
-        type=str,
-        default=None,
-        help='Path to dense point cloud PLY file (for denser initialization than COLMAP points)'
-    )
-    parser.add_argument(
-        '--max-cameras',
-        type=int,
-        default=1200,
-        help='Maximum cameras per patch (default: 1200)'
-    )
-    parser.add_argument(
-        '--buffer',
-        type=float,
-        default=0.8,
-        help='Buffer overlap between patches IN METERS (default: 0.8). Creates overlap for smooth merging. Typical: 0.5-2.0m'
-    )
-    parser.add_argument(
-        '--sample-percentage',
-        type=float,
-        default=5.0,
-        help='Percentage of point cloud to use when using --pointcloud (default: 5.0). Ignored with --use-colmap-points'
-    )
+    parser.add_argument('--config', required=True,
+                       help='Path to splat_config.yml configuration file')
     
     args = parser.parse_args()
     
-    # Create configuration
-    config = PatchConfig(args)
+    # Load configuration
+    config_path = Path(args.config).expanduser()
+    if not config_path.exists():
+        print(f"ERROR: Config file not found: {config_path}")
+        return 1
+    
+    config = load_config(config_path)
+    
+    # Create configuration object
+    patch_config = PatchConfig(config)
     
     print("="*70)
     print("COLMAP Patching Workflow")
     print("="*70)
-    print(f"Input sparse:    {config.sparse_path}")
-    print(f"Input images:    {config.images_path}")
+    print(f"Input sparse:    {patch_config.sparse_path}")
+    print(f"Input images:    {patch_config.images_path}")
     
-    if config.use_colmap_points:
+    if patch_config.use_colmap_points:
         print(f"Point cloud:     COLMAP points3D.bin (from sparse reconstruction)")
-    elif config.pointcloud_path:
-        print(f"Point cloud:     {config.pointcloud_path} (dense PLY)")
-        print(f"Sample %:        {config.sample_percentage}%")
+    elif patch_config.pointcloud_path:
+        print(f"Point cloud:     {patch_config.pointcloud_path} (dense PLY)")
+        print(f"Sample %:        {patch_config.sample_percentage}%")
     else:
         print(f"Point cloud:     None (will train with random initialization)")
     
-    print(f"Output:          {config.output_path}")
-    print(f"Max cameras:     {config.max_cameras}")
-    print(f"Buffer:          {config.buffer_meters}m (overlap between patches)")
+    print(f"Output:          {patch_config.output_path}")
+    print(f"Max cameras:     {patch_config.max_cameras}")
+    print(f"Buffer:          {patch_config.buffer_meters}m (overlap between patches)")
     
     # Ensure output directory exists
-    config.output_path.mkdir(parents=True, exist_ok=True)
+    patch_config.output_path.mkdir(parents=True, exist_ok=True)
     
     # Run workflow steps
-    patches_list, min_z, max_z = step1_create_patches(config)
-    step2_split_cameras(config, patches_list, min_z, max_z)
-    step3_split_pointcloud(config, patches_list, min_z, max_z)
+    patches_list, min_z, max_z = step1_create_patches(patch_config)
+    step2_split_cameras(patch_config, patches_list, min_z, max_z)
+    step3_split_pointcloud(patch_config, patches_list, min_z, max_z)
     
-    # TODO: Add training step here when LichtFeld-Studio integration is ready
-    # step4_train_patches(config, patches_list)
-    
-    # TODO: Add cleanup step (see patch_models.py step5_cleanup_splats)
-    # This removes outlier splats outside patch boundaries and with bad properties
-    # step5_cleanup_splats(config, patches_list, min_z, max_z)
-    
-    # TODO: Add merge step (see patch_models.py merge_clean_ply_files)
-    # This combines all cleaned patches into one full-model.ply
-    # step6_merge_patches(config)
-    
-    print_summary(config, patches_list)
+    print_summary(patch_config, patches_list)
     
     print("Patching completed successfully!")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
