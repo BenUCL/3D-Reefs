@@ -1,0 +1,53 @@
+# Splat Training & Cleanup Configuration
+# This file contains all paths and parameters for gaussian splatting workflows
+
+# PATHS
+paths:
+  # Path to LichtFeld-Studio binary (default: /path/to/lichtfeld-studio/build/LichtFeld-Studio)
+  lichtfeld_bin: /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio
+  # Root directory containing all patch folders (p0, p1, p2, ...)
+  patches_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse_patches
+  # Directory containing source images organized by camera (e.g., images/left/, images/right/)
+  images_dir: /home/ben/encode/data/intermediate_data/colmap5/images
+
+
+# CAMERA CONFIGURATION
+# Maps image subfolder names to COLMAP camera IDs
+# Keys: subfolder names within images_dir
+# Values: camera IDs from cameras.txt/cameras.bin
+camera_mapping:
+  left: 1
+  right: 2
+  # add more mappings as needed
+
+
+# SPLAT TRAINING PARAMETERS
+training:
+  # Number of training iterations (default: 20000)
+  iterations: 10000
+  # Maximum gaussians capacity (default: 1000000)
+  max_cap: 1000000
+  # Pose optimization method: 'direct' or 'indirect' (default: direct) #TODO this is wrong now? direct, mlp or none?
+  pose_opt: direct
+  # Run in headless mode without GUI (default: true)
+  headless: true
+  # If true, train all patches in sequence; if false, train only single patch specified in single_patch (default: true)
+  run_batch: true
+  # Patch name to train when run_batch=false, e.g., 'p0' (default: p0)
+  single_patch: p0
+
+
+# CLEANUP PARAMETERS
+cleanup:
+  # Maximum splat area to keep - removes oversized splats (default: 0.004)
+  max_area: 0.004
+  # Minimum number of neighbors within radius for a splat to be kept (default: 20)
+  min_neighbors: 30
+  # Radius in meters for neighbor search (default: 0.2)
+  radius: 0.2
+  # Remove splats outside patch boundaries plus buffer (default: 0.8)
+  buffer_meters: 0.8
+  # If true, clean all patches in sequence; if false, clean only single patch specified in single_patch (default: true)
+  run_batch: false
+  # Patch name to clean when run_batch=false, e.g., 'p0' (default: p0)
+  single_patch: p0

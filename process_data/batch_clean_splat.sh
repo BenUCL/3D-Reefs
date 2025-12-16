@@ -1,14 +1,17 @@
 #!/bin/bash
 #
-# batch_train_splat.sh
+# batch_clean_splat.sh
 #
-# Train gaussian splats for all patches using configuration from splat_config.yml.
+# Clean gaussian splats for all patches using configuration from splat_config.yml.
 # If a patch fails, it logs the error and continues to the next one automatically.
+#
+# TODO: Add support for saving disposed splats (filtered-out splats) to separate files
+#       for quality verification and parameter tuning
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TRAIN_SCRIPT="$SCRIPT_DIR/train_splat.py"
+CLEAN_SCRIPT="$SCRIPT_DIR/clean_splats.py"
 CONFIG_FILE="$SCRIPT_DIR/splat_config.yml"
 
 # Check arguments
@@ -16,14 +19,14 @@ if [ $# -ne 0 ]; then
     echo "Usage: $0"
     echo ""
     echo "Configuration is read from splat_config.yml"
-    echo "Set training.run_batch=true to train all patches"
-    echo "Set training.run_batch=false to train single patch specified in training.single_patch"
+    echo "Set cleanup.run_batch=true to clean all patches"
+    echo "Set cleanup.run_batch=false to clean single patch specified in cleanup.single_patch"
     exit 1
 fi
 
 # Check files exist
-if [ ! -f "$TRAIN_SCRIPT" ]; then 
-    echo "ERROR: train_splat.py not found: $TRAIN_SCRIPT"
+if [ ! -f "$CLEAN_SCRIPT" ]; then 
+    echo "ERROR: clean_splats.py not found: $CLEAN_SCRIPT"
     exit 1
 fi
 
@@ -34,15 +37,15 @@ fi
 
 # Parse config using Python to extract values
 PATCHES_DIR=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c['paths']['patches_dir'])")
-RUN_BATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(str(c['training'].get('run_batch', True)).lower())")
-SINGLE_PATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c['training'].get('single_patch', 'p0'))")
+RUN_BATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(str(c['cleanup'].get('run_batch', True)).lower())")
+SINGLE_PATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c['cleanup'].get('single_patch', 'p0'))")
 
 # Setup logging
-LOG_FILE="$PATCHES_DIR/splat_training_log.txt"
+LOG_FILE="$PATCHES_DIR/splat_cleanup_log.txt"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "========================================================================"
-echo "Batch Training Log - $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Batch Cleanup Log - $(date '+%Y-%m-%d %H:%M:%S')"
 echo "========================================================================"
 echo "Config: $CONFIG_FILE"
 echo "Run batch: $RUN_BATCH"
@@ -53,7 +56,7 @@ if [ ! -d "$PATCHES_DIR" ]; then
     exit 1
 fi
 
-# Determine which patches to train
+# Determine which patches to clean
 if [ "$RUN_BATCH" = "true" ]; then
     PATCHES=($(find "$PATCHES_DIR" -maxdepth 1 -type d -name 'p[0-9]*' | sort -V))
     
@@ -70,7 +73,7 @@ else
         exit 1
     fi
     PATCHES=("$PATCH_PATH")
-    echo "Training single patch: $SINGLE_PATCH"
+    echo "Cleaning single patch: $SINGLE_PATCH"
 fi
 
 echo ""
@@ -83,61 +86,43 @@ FAILED_PATCHES=()
 # Process each patch
 for PATCH_DIR in "${PATCHES[@]}"; do
     PATCH_NAME=$(basename "$PATCH_DIR")
-    SPARSE_DIR="$PATCH_DIR/sparse/0"
-    OUTPUT_DIR="$PATCH_DIR/sparse/splat"
+    SPLAT_DIR="$PATCH_DIR/sparse/splat"
     
     echo "========================================================================"
-    echo "Training $PATCH_NAME"
+    echo "Cleaning $PATCH_NAME"
     echo "========================================================================"
     
-    # Check if sparse/0 exists
-    if [ ! -d "$SPARSE_DIR" ]; then
-        echo "WARNING: Skipping $PATCH_NAME: sparse/0 not found"
+    # Check if splat directory exists
+    if [ ! -d "$SPLAT_DIR" ]; then
+        echo "WARNING: Skipping $PATCH_NAME: splat directory not found"
+        echo "         Train the splat first using train_splat.py"
         FAIL_COUNT=$((FAIL_COUNT + 1))
-        FAILED_PATCHES+=("$PATCH_NAME (no sparse/0)")
+        FAILED_PATCHES+=("$PATCH_NAME (no splat directory)")
         continue
     fi
     
-    # Check if already trained
-    if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/point_cloud.ply" ]; then
-        echo "WARNING: Output already exists: $OUTPUT_DIR/point_cloud.ply"
-        read -p "Overwrite? [y/N]: " -n 1 -r
-        echo ""
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Skipping $PATCH_NAME"
-            continue
-        fi
-        echo "Removing existing output..."
-        rm -rf "$OUTPUT_DIR"
+    # Check if any splat_*.ply files exist
+    SPLAT_FILES=$(find "$SPLAT_DIR" -maxdepth 1 -name 'splat_*.ply' -not -name '*_clean.ply' -not -name '*_disposed.ply' 2>/dev/null | wc -l)
+    if [ "$SPLAT_FILES" -eq 0 ]; then
+        echo "WARNING: Skipping $PATCH_NAME: no splat_*.ply files found"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+        FAILED_PATCHES+=("$PATCH_NAME (no splat files)")
+        continue
     fi
     
-    # Train this patch
+    # Clean this patch
     START_TIME=$(date +%s)
     PATCH_START=$(date '+%Y-%m-%d %H:%M:%S')
     
-    if python "$TRAIN_SCRIPT" --config "$CONFIG_FILE" --patch "$PATCH_NAME"; then
+    if python "$CLEAN_SCRIPT" --config "$CONFIG_FILE" --patch "$PATCH_NAME"; then
         
-        # Success - extract metrics from run_report.txt
+        # Success
         END_TIME=$(date +%s)
         ELAPSED=$((END_TIME - START_TIME))
         PATCH_END=$(date '+%Y-%m-%d %H:%M:%S')
         
-        REPORT_FILE="$OUTPUT_DIR/run_report.txt"
-        FINAL_LOSS=""
-        FINAL_SPLATS=""
-        NUM_IMAGES=""
-        
-        if [ -f "$REPORT_FILE" ]; then
-            FINAL_LOSS=$(grep -oP 'Loss:\s*\K[0-9.eE+-]+' "$REPORT_FILE" | tail -1 || echo "")
-            FINAL_SPLATS=$(grep -oP 'Splats:\s*\K[0-9]+' "$REPORT_FILE" | tail -1 || echo "")
-            NUM_IMAGES=$(grep -oP '"num_images":\s*\K[0-9]+' "$REPORT_FILE" | head -1 || echo "")
-        fi
-        
         echo ""
-        echo "SUCCESS: $PATCH_NAME completed in ${ELAPSED}s"
-        [ -n "$FINAL_LOSS" ] && echo "  Final Loss: $FINAL_LOSS"
-        [ -n "$FINAL_SPLATS" ] && echo "  Final Splats: $FINAL_SPLATS"
-        [ -n "$NUM_IMAGES" ] && echo "  Images: $NUM_IMAGES"
+        echo "SUCCESS: $PATCH_NAME cleaned in ${ELAPSED}s"
         echo "  Started:  $PATCH_START"
         echo "  Finished: $PATCH_END"
         
@@ -163,7 +148,7 @@ for PATCH_DIR in "${PATCHES[@]}"; do
             read -p "Continue with remaining patches? [Y/n]: " -n 1 -r
             echo ""
             if [[ $REPLY =~ ^[Nn]$ ]]; then
-                echo "Aborting batch training"
+                echo "Aborting batch cleanup"
                 break
             fi
         fi
@@ -176,7 +161,7 @@ done
 BATCH_END=$(date '+%Y-%m-%d %H:%M:%S')
 echo ""
 echo "========================================================================"
-echo "Batch Training Complete - $BATCH_END"
+echo "Batch Cleanup Complete - $BATCH_END"
 echo "========================================================================"
 echo "Total patches: ${#PATCHES[@]}"
 echo "Successful:    $SUCCESS_COUNT"

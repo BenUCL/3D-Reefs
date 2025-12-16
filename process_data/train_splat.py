@@ -14,17 +14,10 @@ The images.txt file contains paths like "left/image.png" or "right/image.png",
 and this script creates the proper directory structure so LichtFeld can find them.
 
 Usage:
-  python train_splat.py \
-    --lichtfeld /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio \
-    --sparse /path/to/sparse/0 \
-    --images /path/to/images \
-    --output /path/to/output \
-    -- --headless -i 20000 --max-cap 1000000 --pose-opt direct
+  python train_splat.py --config splat_config.yml --patch p0
 
 Configuration:
-  - Edit FOLDER_CAMERA_MAPPING below to match your camera setup
-  - Keys: subfolder names within --images directory
-  - Values: camera IDs from cameras.txt
+  - Edit splat_config.yml to configure paths, camera mapping, and training parameters
 """
 
 import argparse
@@ -38,18 +31,24 @@ import os
 import json
 import tempfile
 import shutil
+import yaml
 
 
-FOLDER_CAMERA_MAPPING = {
-    'left': 1,   # left folder contains images from camera 1
-    'right': 2   # right folder contains images from camera 2
-}
+def load_config(config_path: Path) -> dict:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def load_config(config_path: Path) -> dict:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
 
 
 PROGRESS_RE = re.compile(r"(\d+)/(\d+)\s*\|\s*Loss:\s*([0-9.eE+-]+)\s*\|\s*Splats:\s*(\d+)")
 
 
-def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path):
+def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path, camera_mapping: dict):
     """
     Create temporary directory structure that LichtFeld expects:
     
@@ -77,7 +76,7 @@ def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path
     print(f"  ✓ Created sparse/0 -> {sparse_dir}")
     
     # Symlink each image subfolder
-    for subfolder in FOLDER_CAMERA_MAPPING.keys():
+    for subfolder in camera_mapping.keys():
         src_folder = images_dir / subfolder
         if not src_folder.exists():
             print(f"  ⚠️  Warning: {subfolder} not found in {images_dir}")
@@ -96,14 +95,14 @@ def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path
     return temp_dir
 
 
-def gather_metadata(sparse_dir: Path, images_dir: Path):
+def gather_metadata(sparse_dir: Path, images_dir: Path, camera_mapping: dict):
     """Collect metadata about the dataset."""
     meta = {}
     
     # Count images from each camera folder
     camera_counts = {}
     total_images = 0
-    for subfolder, cam_id in FOLDER_CAMERA_MAPPING.items():
+    for subfolder, cam_id in camera_mapping.items():
         folder = images_dir / subfolder
         if folder.exists():
             count = sum(1 for _ in folder.glob('**/*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
@@ -206,7 +205,7 @@ def run_lichtfeld(cmd_list, out_dir: Path):
     return {'all_lines': all_lines, 'progress': progress, 'log': str(log_path), 'return_code': return_code}
 
 
-def write_report(out_dir: Path, cmd_str: str, meta: dict, run_result: dict):
+def write_report(out_dir: Path, cmd_str: str, meta: dict, run_result: dict, camera_mapping: dict):
     """Write run report with metadata and progress."""
     report_path = out_dir / 'run_report.txt'
     timestamp = datetime.datetime.now().isoformat()
@@ -220,7 +219,7 @@ def write_report(out_dir: Path, cmd_str: str, meta: dict, run_result: dict):
     header.append(json.dumps(meta, indent=2))
     header.append("")
     header.append("Camera Folder Mapping:")
-    for folder, cam_id in FOLDER_CAMERA_MAPPING.items():
+    for folder, cam_id in camera_mapping.items():
         header.append(f"  {folder}/ -> Camera ID {cam_id}")
     header.append("")
     header.append("Generated files in output dir:")
@@ -246,34 +245,38 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example:
-  python train_splat_multicam.py \\
-    --lichtfeld /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio \\
-    --sparse /home/ben/encode/data/intermediate_data/colmap5/sparse_patches/p0/sparse/0 \\
-    --images /home/ben/encode/data/intermediate_data/colmap5/images \\
-    --output /home/ben/encode/data/intermediate_data/colmap5/sparse_patches/p0/splat \\
-    -- -i 20000 --max-cap 1000000 --pose-opt direct
+  python train_splat.py --config splat_config.yml --patch p0
+  python train_splat.py --config splat_config.yml --patch p1
 
-Note: Edit FOLDER_CAMERA_MAPPING in this script to match your camera setup.
+Configuration file should contain paths, camera mapping, and training parameters.
         """
     )
     
-    parser.add_argument('--lichtfeld', required=True, 
-                       help='Path to LichtFeld-Studio binary')
-    parser.add_argument('--sparse', required=True, 
-                       help='Path to sparse/0 directory (contains cameras.bin, images.bin, points3D.bin)')
-    parser.add_argument('--images', required=True, 
-                       help='Path to images directory (contains subfolders: left/, right/, etc.)')
-    parser.add_argument('--output', required=True, 
-                       help='Output directory for trained splat')
-    parser.add_argument('extra', nargs=argparse.REMAINDER, 
-                       help='Extra arguments forwarded to LichtFeld (prefix with --)')
+    parser.add_argument('--config', required=True, 
+                       help='Path to splat_config.yml configuration file')
+    parser.add_argument('--patch', required=True, 
+                       help='Patch name to train (e.g., p0, p1, p2)')
 
     args = parser.parse_args()
 
-    lf_bin = Path(args.lichtfeld).expanduser()
-    sparse_dir = Path(args.sparse).expanduser()
-    images_dir = Path(args.images).expanduser()
-    output_dir = Path(args.output).expanduser()
+    # Load configuration
+    config_path = Path(args.config).expanduser()
+    if not config_path.exists():
+        print(f"ERROR: Config file not found: {config_path}")
+        sys.exit(2)
+    
+    config = load_config(config_path)
+    
+    # Extract paths and settings from config
+    lf_bin = Path(config['paths']['lichtfeld_bin']).expanduser()
+    patches_dir = Path(config['paths']['patches_dir']).expanduser()
+    images_dir = Path(config['paths']['images_dir']).expanduser()
+    camera_mapping = config['camera_mapping']
+    
+    # Build paths for this specific patch
+    patch_name = args.patch
+    sparse_dir = patches_dir / patch_name / "sparse" / "0"
+    output_dir = patches_dir / patch_name / "sparse" / "splat"
 
     # Validate inputs
     if not lf_bin.exists():
@@ -298,13 +301,14 @@ Note: Edit FOLDER_CAMERA_MAPPING in this script to match your camera setup.
     print("="*70)
     print("LichtFeld-Studio Multi-Camera Training")
     print("="*70)
+    print(f"Patch:       {patch_name}")
     print(f"Sparse dir:  {sparse_dir}")
     print(f"Images dir:  {images_dir}")
     print(f"Output dir:  {output_dir}")
     print()
     
     # Gather metadata
-    meta = gather_metadata(sparse_dir, images_dir)
+    meta = gather_metadata(sparse_dir, images_dir, camera_mapping)
     print(f"Found {meta['num_images']} total images across {len(meta['camera_counts'])} cameras")
     for cam_key, count in meta['camera_counts'].items():
         print(f"  {cam_key}: {count} images")
@@ -313,15 +317,19 @@ Note: Edit FOLDER_CAMERA_MAPPING in this script to match your camera setup.
     # Create temporary directory structure
     temp_dir = Path(tempfile.mkdtemp(prefix='lichtfeld_multicam_'))
     try:
-        setup_lichtfeld_structure(sparse_dir, images_dir, temp_dir)
+        setup_lichtfeld_structure(sparse_dir, images_dir, temp_dir, camera_mapping)
         print()
         
-        # Build LichtFeld command using temp directory
+        # Build LichtFeld command using temp directory and config parameters
         cmd = [str(lf_bin), '-d', str(temp_dir), '-o', str(output_dir)]
-        extra = [e for e in args.extra]
-        if extra and extra[0] == '--':
-            extra = extra[1:]
-        cmd += extra
+        
+        # Add training parameters from config
+        train_config = config['training']
+        if train_config.get('headless', True):
+            cmd.append('--headless')
+        cmd.extend(['-i', str(train_config.get('iterations', 20000))])
+        cmd.extend(['--max-cap', str(train_config.get('max_cap', 1000000))])
+        cmd.extend(['--pose-opt', train_config.get('pose_opt', 'direct')])
         
         cmd_str = ' '.join(shlex.quote(c) for c in cmd)
         print(f"Running LichtFeld:")
@@ -332,20 +340,19 @@ Note: Edit FOLDER_CAMERA_MAPPING in this script to match your camera setup.
         run_result = run_lichtfeld(cmd, output_dir)
         
         # Write report
-        report_path = write_report(output_dir, cmd_str, meta, run_result)
+        report_path = write_report(output_dir, cmd_str, meta, run_result, camera_mapping)
         print()
         print(f"✓ Report written to: {report_path}")
         print(f"✓ Full log: {run_result['log']}")
         
         if run_result['return_code'] != 0:
-            print(f"\n❌ ERROR: LichtFeld-Studio exited with code {run_result['return_code']}")
+            print(f"\nERROR: LichtFeld-Studio exited with code {run_result['return_code']}")
             sys.exit(run_result['return_code'])
         else:
-            print("\n🎉 Training completed successfully!")
+            print("\nTraining completed successfully!")
     
     finally:
         # Cleanup temp directory
-        print(f"\nCleaning up temporary directory: {temp_dir}")
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
