@@ -4,23 +4,6 @@ patch_colmap_data.py
 
 Split large COLMAP reconstructions into smaller patches for gaussian splatting training.
 
-⚠️  IMPORTANT - Camera Model Conversion:
-    wildflow.splat.split_cameras() CONVERTS camera models to PINHOLE automatically!
-    - Input: OPENCV cameras (with distortion parameters)
-    - Output: PINHOLE cameras (fx, fy, cx, cy only - no distortion)
-    - This is INTENTIONAL - wildflow assumes images are already undistorted
-    - If your images are NOT undistorted, you must undistort them first!
-    - The width/height may also be slightly adjusted (e.g., 1600→1548)
-
-This script takes COLMAP outputs (cameras.bin, images.bin, points3D.bin) and splits them
-into multiple overlapping patches. Each patch is saved in COLMAP format (both .bin and .txt)
-so it can be used directly with LichtFeld-Studio or other gaussian splatting trainers.
-
-Why patching?
-    - Large scenes don't fit in GPU VRAM for splat training
-    - Splitting into patches allows training smaller sections independently
-    - Patches have overlap (buffer zone) to ensure smooth merging later
-    - Each patch can be trained in parallel on multiple GPUs
 
 Usage:
     # Using COLMAP sparse points (from points3D.bin)
@@ -29,38 +12,19 @@ Usage:
         --images /path/to/images \
         --output /path/to/output \
         --use-colmap-points \
-        --max-cameras 1200 \
+        --sample-percentage 10.0 \
+        --max-cameras 400 \
         --buffer 0.1
 
-    # Using separate dense point cloud (PLY)
+    # Or use, separate dense point cloud (PLY)
     python patch_colmap_data.py \
         --sparse /path/to/sparse/0 \
         --images /path/to/images \
         --output /path/to/output \
         --pointcloud /path/to/dense.ply \
-        --sample-percentage 5.0
-
-
-Buffer parameter:
-    - buffer IS in the same units as your camera positions (meters if cameras are in meters)
-    - Since cameras get X/Y coordinates from projection_center(), buffer is in world units
-    - Example: if cameras span X: [-5, 5] (10m), buffer=0.8 adds 0.8m overlap
-    - buffer=0.8 with 100+ patches means VERY DENSE patching with lots of overlap
-    - Typical values: 0.5-2.0 for meter-scale scenes, adjust based on your coordinate scale
-    - Larger buffer = more overlap = smoother merging but more redundant training
-
-Output files (frames.txt, rigs.txt):
-    - These are COLMAP "rig" format files for multi-camera setups
-    - frames.txt: Maps each image to a rig pose (for synchronized multi-cam rigs)
-    - rigs.txt: Defines camera rig configurations
-    - For single-camera reconstruction: these files are mostly empty/redundant
-    - LichtFeld-Studio only needs cameras.bin, images.bin, points3D.bin
-    - Safe to ignore frames.txt and rigs.txt for standard splatting workflows
-
-Based on patch_models.py but adapted for:
-    1. Direct COLMAP .bin file inputs (no PLY required!)
-    2. Output patches in COLMAP format (.bin + .txt)
-    3. No training step (training done separately with LichtFeld-Studio)
+        --sample-percentage 10.0 \
+        --max-cameras 400 \
+        --buffer 0.1
 """
 
 import argparse
@@ -323,22 +287,6 @@ def print_summary(config: PatchConfig, patches_list: List[Dict]):
     print("    ├── cameras.bin + cameras.txt")
     print("    ├── images.bin + images.txt")
     print("    └── points3D.bin + points3D.txt (if point cloud provided)")
-    print()
-    print("Next steps:")
-    print("  1. Train each patch with LichtFeld-Studio:")
-    print("     cd lichtfeld-studio/build")
-    print("     ./lichtfeld-studio \\")
-    print(f"       --sparse {config.output_path}/p0/sparse/0 \\")
-    print(f"       --images {config.images_path} \\")
-    print(f"       --output {config.output_path}/p0/raw-p0.ply")
-    print()
-    print("  2. After training all patches, clean up and merge:")
-    print("     - Use wildflow.splat.cleanup_splats() to remove outliers")
-    print("     - Use wildflow.splat.merge_ply_files() to combine patches")
-    print()
-    print("  See patch_models.py for cleanup/merge example code")
-    print()
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -468,7 +416,7 @@ Examples:
     
     print_summary(config, patches_list)
     
-    print("🎉 Patching completed successfully!")
+    print("Patching completed successfully!")
 
 
 if __name__ == "__main__":
