@@ -93,7 +93,7 @@ gaussian_splatting:
   # Number of training iterations
   iterations: 20000
   # Maximum splat count after densification
-  max_cap: 5000000
+  max_cap: 2000000
   # Pose optimization method - refines camera poses during training
   # Options: "direct" (faster, optimizes offsets directly) or "mlp" (better results, uses neural network)
   # Set to null (no quotes) to disable pose optimization

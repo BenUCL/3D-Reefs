@@ -10,9 +10,9 @@ import shutil
 from pathlib import Path
 
 # Configuration
-INPUT_DIR = "/home/ben/encode/data/intermediate_data/colmap3/left_950_png_downsampled"
-OUTPUT_DIR = "/home/ben/encode/data/intermediate_data/colmap3/left_950_png_downsampled/renamed"
-
+INPUT_DIR = "/home/ben/encode/data/intermediate_data/colmap5/4559_downsampled_png"
+OUTPUT_DIR = "/home/ben/encode/data/intermediate_data/colmap5/4559_downsampled_png/renamed"
+    
 
 def extract_number(filename):
     """Extract the numeric part from the filename."""
