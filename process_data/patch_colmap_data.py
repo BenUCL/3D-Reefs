@@ -155,6 +155,7 @@ def step2_split_cameras(config: PatchConfig, patches_list: List[Dict], min_z: fl
             try:
                 reconstruction = pycolmap.Reconstruction(str(patch_sparse))
                 reconstruction.write_text(str(patch_sparse))
+                #TODO: I think the images.txt is be export in wrong format. Way too many entries per row.
                 if config.use_colmap_points:
                     print(f"  ✓ p{i}: cameras.txt, images.txt, points3D.txt exported")
                 else:
