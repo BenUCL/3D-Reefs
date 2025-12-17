@@ -5,25 +5,23 @@
 paths:
   # Path to LichtFeld-Studio binary
   lichtfeld_bin: /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio
-  
   # Root directory containing all patch folders (p0, p1, p2, ...)
   patches_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse_patches
-  
   # Directory containing source images organized by camera (e.g., images/left/, images/right/)
   images_dir: /home/ben/encode/data/intermediate_data/colmap5/images
+  # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
+  sparse_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse
+  # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
+  pointcloud_path: 
 
 # PATCHING CONFIGURATION
 patching:
-  # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
-  sparse_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse/0
   # Maximum cameras per patch
   max_cameras: 400
   # Overlap between patches in meters - use path_visualiser.py to test!
   buffer_meters: 0.1
   # Use COLMAP sparse points (points3D.bin) for initialization (default: true)
   use_colmap_points: true
-  # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
-  pointcloud_path: 
   # If using external PLY, percentage to sample (default: 5.0, ignored if using COLMAP points)
   #TODO: this is ignored currently if using colmap points3d.bin I believe, fix that?
   sample_percentage: 5.0
@@ -39,29 +37,37 @@ camera_mapping:
 # TRAINING PARAMETERS
 training:
   # Number of training iterations (default: 20000)
-  iterations: 10000
+  iterations: 15000
   # Maximum gaussians capacity (default: 1000000)
   max_cap: 1000000
   # Pose optimization: 'direct', 'mlp', or 'none' (default: direct)
   pose_opt: direct
+  # Optimization strategy: 'mcmc' or 'default' (default: mcmc)
+  # NOTE: 'default' required due to LFS bug - MCMC strategy fails on some patches (p5, p6, p12)
+  # with "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth.
+  # TODO: File bug report with LichtFeld-Studio about MCMC + FastGS incompatibility
+  strategy: default
   # Run in headless mode without GUI (default: true)
   headless: true
   # If true, train all patches; if false, train single patch (default: true)
-  run_batch: true
+  run_batch: false
   # Patch to train when run_batch=false (default: p0)
   single_patch: p0
 
 # CLEANUP SPLATS PARAMETERS
+# NOTE: May want to view some splats output during training first to check for any funny business or failures.
 cleanup:
   # Maximum splat area to keep - removes oversized splats (default: 0.004)
   max_area: 0.004
   # Minimum neighbors within radius for a splat to be kept (default: 20)
-  min_neighbors: 30
+  min_neighbors: 20
   # Radius in meters for neighbor search (default: 0.1) #TODO: As above, this is not actually conssitant with metres
   radius: 0.05
-  # Enable spatial boundary filtering - removes splats outside patch core (excludes buffer zone)
-  filter_boundaries: false
-  # If filter_boundaries=true, shrink patch boundaries by this amount (should match patching.buffer_meters)
+  # Each patch has a boundary which is stored in their patch_metadata.json. 
+  # Set filter_boundaries to true to shrink the boundary, removing splats outside this shrunken boundary.
+  filter_boundaries: true
+  # If filter_boundaries=true, set the distance by which to shrink each patches boundary. 
+  # Commonly it will be that this should match patching.buffer_meters above, so as to trim patches down so there is no overlap between them.
   boundary_buffer: 0.1
   # If true, clean all patches; if false, clean single patch (default: true)
   run_batch: false

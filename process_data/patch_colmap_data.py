@@ -24,6 +24,7 @@ from pathlib import Path
 from wildflow import splat
 from typing import Dict, Any, List
 import yaml
+import json
 
 
 def load_config(config_path: Path) -> dict:
@@ -36,16 +37,17 @@ class PatchConfig:
     """Configuration for patching COLMAP data."""
     
     def __init__(self, config: dict):
-        # Extract patching config section
+        # Extract config sections
+        paths_cfg = config.get('paths', {})
         patch_cfg = config.get('patching', {})
         
         # Input paths
-        self.sparse_path = Path(patch_cfg['sparse_dir'])
-        self.images_path = Path(patch_cfg['images_dir'])
-        self.pointcloud_path = Path(patch_cfg['pointcloud_path']) if patch_cfg.get('pointcloud_path') else None
+        self.sparse_path = Path(paths_cfg['sparse_dir'])
+        self.images_path = Path(paths_cfg['images_dir'])
+        self.pointcloud_path = Path(paths_cfg['pointcloud_path']) if paths_cfg.get('pointcloud_path') else None
         
         # Output path
-        self.output_path = Path(config['paths']['patches_dir'])
+        self.output_path = Path(paths_cfg['patches_dir'])
         
         # Patching settings
         self.max_cameras = patch_cfg.get('max_cameras', 1200)
@@ -154,13 +156,32 @@ def step2_split_cameras(config: PatchConfig, patches_list: List[Dict], min_z: fl
             try:
                 reconstruction = pycolmap.Reconstruction(str(patch_sparse))
                 reconstruction.write_text(str(patch_sparse))
-                #TODO: I think the images.txt is be export in wrong format. Way too many entries per row.
+                #TODO: I think the images.txt may be being exported in wrong format. Way too many entries per row?
                 if config.use_colmap_points:
                     print(f"  ✓ p{i}: cameras.txt, images.txt, points3D.txt exported")
                 else:
                     print(f"  ✓ p{i}: cameras.txt, images.txt exported")
             except Exception as e:
                 print(f"  ✗ p{i}: Failed to export txt - {e}")
+    
+    # Save patch metadata (boundaries) for each patch
+    print(f"\nSaving patch metadata...")
+    for i, patch in enumerate(patches_list):
+        patch_dir = config.output_path / f"p{i}"
+        metadata_file = patch_dir / "patch_metadata.json"
+        metadata = {
+            "patch_id": i,
+            "min_x": patch['min_x'],
+            "max_x": patch['max_x'],
+            "min_y": patch['min_y'],
+            "max_y": patch['max_y'],
+            "min_z": min_z,
+            "max_z": max_z,
+            "buffer_meters": config.buffer_meters
+        }
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        print(f"  ✓ p{i}: patch_metadata.json saved")
     
     return {"result": result, "patches_count": len(patches_list)}
 

@@ -4,7 +4,7 @@ This pipeline processes large COLMAP reconstructions into high-quality 3D gaussi
 
 ## Overview
 
-**Input**: COLMAP reconstruction (cameras.bin, images.bin, points3D.bin, source images)  
+**Input**: COLMAP reconstruction (cameras.bin, images.bin, points3D.bin, source images). Note, it may be that images from different cameras must be the same dimension or very close to it, though I am unsure.
 **Output**: Cleaned gaussian splat models ready for rendering or merging
 
 **Pipeline**: Patch → Train → Clean
@@ -89,7 +89,6 @@ p0/sparse/splat/
 - Handles multi-camera datasets (left/right cameras), set these in config
 - Logs training loss and splat count progression
 - Continues to next patch if one fails (logs error, moves to next patch)
-- **Splat files are automatically prefixed with patch name** (e.g., `p0_splat_20000.ply`)
 
 **Log location:** `patches_dir/splat_training_log.txt`
 
