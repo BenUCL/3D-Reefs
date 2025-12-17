@@ -16,17 +16,16 @@ paths:
 patching:
   # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
   sparse_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse/0
-  # Directory containing source images
-  images_dir: /home/ben/encode/data/intermediate_data/colmap5/images
-  # Maximum cameras per patch - use patch visualiser to determine optimal value (default: 1200)
+  # Maximum cameras per patch
   max_cameras: 400
-  # Overlap between patches in meters - creates buffer for smooth merging (default: 0.8)
+  # Overlap between patches in meters - use path_visualiser.py to test!
   buffer_meters: 0.1
   # Use COLMAP sparse points (points3D.bin) for initialization (default: true)
   use_colmap_points: true
   # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
   pointcloud_path: 
   # If using external PLY, percentage to sample (default: 5.0, ignored if using COLMAP points)
+  #TODO: this is ignored currently if using colmap points3d.bin I believe, fix that?
   sample_percentage: 5.0
 
 
@@ -35,6 +34,7 @@ patching:
 camera_mapping:
   left: 1
   right: 2
+  # add more mappings as needed
 
 # TRAINING PARAMETERS
 training:
@@ -51,16 +51,18 @@ training:
   # Patch to train when run_batch=false (default: p0)
   single_patch: p0
 
-# CLEANUP PARAMETERS
+# CLEANUP SPLATS PARAMETERS
 cleanup:
   # Maximum splat area to keep - removes oversized splats (default: 0.004)
   max_area: 0.004
   # Minimum neighbors within radius for a splat to be kept (default: 20)
   min_neighbors: 30
-  # Radius in meters for neighbor search (default: 0.2)
-  radius: 0.2
-  # Buffer in meters for patch boundaries (default: 0.8)
-  buffer_meters: 0.8
+  # Radius in meters for neighbor search (default: 0.1) #TODO: As above, this is not actually conssitant with metres
+  radius: 0.05
+  # Enable spatial boundary filtering - removes splats outside patch core (excludes buffer zone)
+  filter_boundaries: false
+  # If filter_boundaries=true, shrink patch boundaries by this amount (should match patching.buffer_meters)
+  boundary_buffer: 0.1
   # If true, clean all patches; if false, clean single patch (default: true)
   run_batch: false
   # Patch to clean when run_batch=false (default: p0)

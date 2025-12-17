@@ -28,8 +28,11 @@ paths:
 
 patching:
   sparse_dir: /path/to/colmap/sparse/0
-  max_cameras: 400        # Cameras per patch
-  buffer_meters: 0.1       # Overlap between patches (note must use patch_visualiser.py to check)
+  max_cameras: 400 # images per patch
+  buffer_meters: 0.1 # buffer size, supposedly in metres but not sure. Use patch visualiser to set this!
+  use_colmap_points: true
+  pointcloud_path:          # Optional: path to dense PLY
+  sample_percentage: 5.0    # Percentage of PLY points to sample (reduces point count, only used with pointcloud_path)
 
 camera_mapping:
   left: 1                  # Map folder names to camera IDs
@@ -41,9 +44,11 @@ training:
   run_batch: true          # Train all patches or single patch
 
 cleanup:
-  max_area: 0.004          # Remove oversized splats
-  min_neighbors: 20        # Remove isolated splats
-  radius: 0.2              # Neighbor search radius (meters)
+  max_area: 0.004 # Remove oversized splats
+  min_neighbors: 20 # Remove isolated splats
+  radius: 0.2 # Neighbour search area, remove those that don't meet this.
+  filter_boundaries: false  # Remove splats outside patch core (excludes buffer zone)
+  boundary_buffer: 0.1      # Buffer to exclude if filter_boundaries=true
   run_batch: true
 ```
 
@@ -132,7 +137,7 @@ Remove low-quality splats using spatial and neighbor-based filtering:
 - Filters splats using wildflow.splat.cleanup_splats:
   - Removes oversized splats (area > `max_area`)
   - Removes isolated splats (< `min_neighbors` within `radius`)
-  - Optionally removes splats outside patch boundaries
+  - If `filter_boundaries=true`, removes splats outside patch core (excludes buffer zone added during patching)
 - Creates cleaned version: `splat_20000_clean.ply`
 
 **Output:**

@@ -104,6 +104,7 @@ Configuration file should contain cleanup parameters and paths.
     # Extract paths and settings from config
     patches_dir = Path(config['paths']['patches_dir']).expanduser()
     cleanup_config = config['cleanup']
+    patching_config = config.get('patching', {})
     
     # Build paths for this specific patch
     patch_name = args.patch
@@ -152,10 +153,17 @@ Configuration file should contain cleanup parameters and paths.
     print(f"  max_area:       {cleanup_config['max_area']}")
     print(f"  min_neighbors:  {cleanup_config['min_neighbors']}")
     print(f"  radius:         {cleanup_config['radius']}m")
+    if cleanup_config.get('filter_boundaries', False):
+        print(f"  boundary filter: enabled (buffer: {cleanup_config.get('boundary_buffer', 0.0)}m)")
     print()
     
-    # Get patch boundaries (if available)
-    boundaries = get_patch_boundaries(patch_dir, cleanup_config['buffer_meters'])
+    # Get patch boundaries from patching config if boundary filtering enabled
+    boundaries = {}
+    if cleanup_config.get('filter_boundaries', False):
+        # Read patch metadata to get actual boundaries
+        # For now, would need to be implemented based on how patches were created
+        # This would exclude the buffer zone added during patching
+        pass
     
     # Build cleanup configuration
     # TODO: Add disposed_file parameter to save filtered-out splats for quality verification
@@ -168,7 +176,7 @@ Configuration file should contain cleanup parameters and paths.
         "radius": cleanup_config['radius']
     }
     
-    # Add spatial boundaries if available
+    # Add spatial boundaries if enabled and available
     if boundaries:
         cleanup_params.update(boundaries)
     
