@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 from wildflow import splat
 import re
+import json
 
 
 def load_config(config_path: Path) -> dict:
@@ -29,25 +30,36 @@ def load_config(config_path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def find_highest_iteration_splat(splat_dir: Path) -> Path:
+def find_highest_iteration_splat(splat_dir: Path, patch_name: str) -> Path:
     """
     Find the splat PLY file with the highest iteration number.
     
-    Looks for files like splat_10000.ply, splat_20000.ply, etc.
+    Looks for files like p0_splat_10000.ply, p0_splat_20000.ply, etc.
+    Also supports legacy filenames without prefix: splat_10000.ply, splat_20000.ply
     Returns the one with the highest iteration number.
     """
-    splat_files = list(splat_dir.glob('splat_*.ply'))
+    # Try prefixed files first (e.g., p0_splat_10000.ply)
+    splat_files = list(splat_dir.glob(f'{patch_name}_splat_*.ply'))
+    
+    # Fall back to legacy non-prefixed files if none found
+    if not splat_files:
+        splat_files = list(splat_dir.glob('splat_*.ply'))
     
     if not splat_files:
         raise FileNotFoundError(f"No splat_*.ply files found in {splat_dir}")
     
     # Extract iteration numbers and find max
-    pattern = re.compile(r'splat_(\d+)\.ply')
+    # Support both formats: p0_splat_10000.ply and splat_10000.ply
+    pattern_prefixed = re.compile(rf'{re.escape(patch_name)}_splat_(\d+)\.ply')
+    pattern_legacy = re.compile(r'splat_(\d+)\.ply')
     max_iter = -1
     max_file = None
     
     for f in splat_files:
-        match = pattern.match(f.name)
+        match = pattern_prefixed.match(f.name)
+        if not match:
+            match = pattern_legacy.match(f.name)
+        
         if match:
             iteration = int(match.group(1))
             if iteration > max_iter:
@@ -62,15 +74,34 @@ def find_highest_iteration_splat(splat_dir: Path) -> Path:
 
 def get_patch_boundaries(patch_dir: Path, buffer_meters: float) -> dict:
     """
-    Get patch boundaries from patch metadata or infer from camera positions.
+    Get patch boundaries from patch metadata and shrink by buffer.
     
-    For now, returns None to indicate we should use full bounds.
-    In a full implementation, this would read patch boundaries from
-    the patching metadata created by patch_colmap_data.py.
+    Reads patch_metadata.json created during patching, which contains
+    the original patch boundaries. Shrinks boundaries inward by
+    buffer_meters to exclude the overlap zone.
     """
-    # TODO: Read actual patch boundaries from metadata if available
-    # For now, we'll rely on wildflow's spatial filtering
-    return {}
+    metadata_file = patch_dir / "patch_metadata.json"
+    
+    if not metadata_file.exists():
+        # Throw error
+        print(f" patch_metadata.json not found, cannot apply boundary filtering")
+        print(f" Re-run patch_colmap_data.py to generate metadata")
+        raise FileNotFoundError(f"patch_metadata.json not found in {patch_dir}")
+
+    with open(metadata_file, 'r') as f:
+        metadata = json.load(f)
+    
+    # Shrink boundaries by buffer amount to exclude overlap zone
+    boundaries = {
+        "min_x": metadata['min_x'] + buffer_meters,
+        "max_x": metadata['max_x'] - buffer_meters,
+        "min_y": metadata['min_y'] + buffer_meters,
+        "max_y": metadata['max_y'] - buffer_meters,
+        "min_z": metadata['min_z'],
+        "max_z": metadata['max_z']
+    }
+    
+    return boundaries
 
 
 def main():
@@ -130,7 +161,7 @@ Configuration file should contain cleanup parameters and paths.
     
     # Find highest iteration splat file
     try:
-        input_file = find_highest_iteration_splat(splat_dir)
+        input_file = find_highest_iteration_splat(splat_dir, patch_name)
         print(f"Found splat file: {input_file.name}")
     except FileNotFoundError as e:
         print(f"ERROR: {e}")
@@ -160,10 +191,14 @@ Configuration file should contain cleanup parameters and paths.
     # Get patch boundaries from patching config if boundary filtering enabled
     boundaries = {}
     if cleanup_config.get('filter_boundaries', False):
-        # Read patch metadata to get actual boundaries
-        # For now, would need to be implemented based on how patches were created
-        # This would exclude the buffer zone added during patching
-        pass
+        boundary_buffer = cleanup_config.get('boundary_buffer', 0.0)
+        boundaries = get_patch_boundaries(patch_dir, boundary_buffer)
+        if boundaries:
+            print(f"Applying boundary filtering (shrunk by {boundary_buffer}m):")
+            print(f"  X: [{boundaries['min_x']:.2f}, {boundaries['max_x']:.2f}]")
+            print(f"  Y: [{boundaries['min_y']:.2f}, {boundaries['max_y']:.2f}]")
+            print(f"  Z: [{boundaries['min_z']:.2f}, {boundaries['max_z']:.2f}]")
+            print()
     
     # Build cleanup configuration
     # TODO: Add disposed_file parameter to save filtered-out splats for quality verification

@@ -75,10 +75,42 @@ fi
 
 echo ""
 
+# Check for existing splats in patches
+EXISTING_SPLATS=()
+for PATCH_DIR in "${PATCHES[@]}"; do
+    PATCH_NAME=$(basename "$PATCH_DIR")
+    OUTPUT_DIR="$PATCH_DIR/sparse/splat"
+    
+    # Check if this patch has any splat_*.ply or prefixed p*_splat_*.ply files
+    if [ -d "$OUTPUT_DIR" ] && (compgen -G "$OUTPUT_DIR/splat_*.ply" > /dev/null || compgen -G "$OUTPUT_DIR/${PATCH_NAME}_splat_*.ply" > /dev/null); then
+        EXISTING_SPLATS+=("$PATCH_NAME")
+    fi
+done
+
+# If some patches already have splats, ask user what to do
+SKIP_EXISTING=false
+if [ ${#EXISTING_SPLATS[@]} -gt 0 ]; then
+    echo "⚠️  Found existing splats in ${#EXISTING_SPLATS[@]} patch(es):"
+    for EXISTING in "${EXISTING_SPLATS[@]}"; do
+        echo "    - $EXISTING"
+    done
+    echo ""
+    read -p "Continue with remaining patches (press Y to skip completed, press N to retrain all)? [Y/n]: " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        SKIP_EXISTING=true
+        echo "✓ Will skip patches with existing splats"
+    else
+        echo "✓ Will retrain all patches from the beginning"
+    fi
+    echo ""
+fi
+
 # Track successes and failures
 SUCCESS_COUNT=0
 FAIL_COUNT=0
 FAILED_PATCHES=()
+SKIPPED_COUNT=0
 
 # Process each patch
 for PATCH_DIR in "${PATCHES[@]}"; do
@@ -90,6 +122,14 @@ for PATCH_DIR in "${PATCHES[@]}"; do
     echo "Training $PATCH_NAME"
     echo "========================================================================"
     
+    # Skip if already exists and user chose to skip existing
+    if [ "$SKIP_EXISTING" = true ] && [ -d "$OUTPUT_DIR" ] && (compgen -G "$OUTPUT_DIR/splat_*.ply" > /dev/null || compgen -G "$OUTPUT_DIR/${PATCH_NAME}_splat_*.ply" > /dev/null); then
+        echo "✓ Skipping $PATCH_NAME (already trained)"
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+        echo ""
+        continue
+    fi
+    
     # Check if sparse/0 exists
     if [ ! -d "$SPARSE_DIR" ]; then
         echo "WARNING: Skipping $PATCH_NAME: sparse/0 not found"
@@ -99,12 +139,14 @@ for PATCH_DIR in "${PATCHES[@]}"; do
     fi
     
     # Check if already trained
-    if [ -d "$OUTPUT_DIR" ] && [ -f "$OUTPUT_DIR/point_cloud.ply" ]; then
-        echo "WARNING: Output already exists: $OUTPUT_DIR/point_cloud.ply"
+    if [ -d "$OUTPUT_DIR" ] && (compgen -G "$OUTPUT_DIR/splat_*.ply" > /dev/null || compgen -G "$OUTPUT_DIR/${PATCH_NAME}_splat_*.ply" > /dev/null); then
+        echo "⚠️  WARNING: Output already exists in $OUTPUT_DIR"
         read -p "Overwrite? [y/N]: " -n 1 -r
         echo ""
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo "Skipping $PATCH_NAME"
+            SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+            echo ""
             continue
         fi
         echo "Removing existing output..."
@@ -151,22 +193,14 @@ for PATCH_DIR in "${PATCHES[@]}"; do
         PATCH_END=$(date '+%Y-%m-%d %H:%M:%S')
         
         echo ""
-        echo "FAILED: $PATCH_NAME after ${ELAPSED}s (exit code: $EXIT_CODE)"
+        echo "⚠️  FAILED: $PATCH_NAME after ${ELAPSED}s (exit code: $EXIT_CODE)"
         echo "  Started:  $PATCH_START"
         echo "  Failed:   $PATCH_END"
+        echo ""
+        echo "⚠️  Continuing to next patch..."
         
         FAIL_COUNT=$((FAIL_COUNT + 1))
         FAILED_PATCHES+=("$PATCH_NAME (exit code: $EXIT_CODE, ${ELAPSED}s)")
-        
-        # Ask whether to continue (only in batch mode)
-        if [ "$RUN_BATCH" = "true" ]; then
-            read -p "Continue with remaining patches? [Y/n]: " -n 1 -r
-            echo ""
-            if [[ $REPLY =~ ^[Nn]$ ]]; then
-                echo "Aborting batch training"
-                break
-            fi
-        fi
     fi
     
     echo ""
@@ -180,6 +214,7 @@ echo "Batch Training Complete - $BATCH_END"
 echo "========================================================================"
 echo "Total patches: ${#PATCHES[@]}"
 echo "Successful:    $SUCCESS_COUNT"
+echo "Skipped:       $SKIPPED_COUNT"
 echo "Failed:        $FAIL_COUNT"
 
 if [ $FAIL_COUNT -gt 0 ]; then
