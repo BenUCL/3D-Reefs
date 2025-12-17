@@ -185,6 +185,10 @@ for PATCH_DIR in "${PATCHES[@]}"; do
         
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         
+        # Add delay to allow GPU memory to be fully freed
+        echo "  Waiting 5s for GPU cleanup..."
+        sleep 5
+        
     else
         # Failure
         EXIT_CODE=$?
