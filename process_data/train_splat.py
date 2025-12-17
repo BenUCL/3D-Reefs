@@ -339,6 +339,21 @@ Configuration file should contain paths, camera mapping, and training parameters
         # Run LichtFeld
         run_result = run_lichtfeld(cmd, output_dir)
         
+        # Rename splat files to include patch name prefix
+        print("\nRenaming splat files with patch prefix...")
+        renamed_count = 0
+        for splat_file in output_dir.glob("splat_*.ply"):
+            new_name = f"{patch_name}_{splat_file.name}"
+            new_path = splat_file.parent / new_name
+            splat_file.rename(new_path)
+            print(f"  ✓ {splat_file.name} → {new_name}")
+            renamed_count += 1
+        
+        if renamed_count > 0:
+            print(f"Renamed {renamed_count} splat file(s)")
+        else:
+            print("No splat files found to rename")
+        
         # Write report
         report_path = write_report(output_dir, cmd_str, meta, run_result, camera_mapping)
         print()
@@ -354,6 +369,17 @@ Configuration file should contain paths, camera mapping, and training parameters
     finally:
         # Cleanup temp directory
         shutil.rmtree(temp_dir, ignore_errors=True)
+        
+        # Explicit CUDA cleanup to prevent memory issues in batch training
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print("✓ CUDA cache cleared")
+        except Exception as e:
+            # Don't fail if torch isn't available or CUDA cleanup fails
+            pass
 
 
 if __name__ == '__main__':
