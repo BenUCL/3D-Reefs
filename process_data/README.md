@@ -92,6 +92,10 @@ p0/sparse/splat/
 
 **Log location:** `patches_dir/splat_training_log.txt`
 
+**TODO**
+- Currently setting `max_cap` in the config doesn't seem to do anything. It will just keeping adding gaussians.
+- Had to disable MCMC as was getting "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth. However, MCMC is meant to produce more accurate splats so I would like this to work.
+
 ### Step 4: Clean Gaussian Splats
 
 Remove floaters and giant splats using spatial and neighbor-based filtering. 

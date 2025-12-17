@@ -43,9 +43,7 @@ training:
   # Pose optimization: 'direct', 'mlp', or 'none' (default: direct)
   pose_opt: direct
   # Optimization strategy: 'mcmc' or 'default' (default: mcmc)
-  # NOTE: 'default' required due to LFS bug - MCMC strategy fails on some patches (p5, p6, p12)
-  # with "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth.
-  # TODO: File bug report with LichtFeld-Studio about MCMC + FastGS incompatibility
+  # NOTE: 'default' required due to LFS bug - MCMC strategy fails on some patches with "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth.
   strategy: default
   # Run in headless mode without GUI (default: true)
   headless: true
