@@ -1,0 +1,29 @@
+########################
+#At isntall I was getting this issue:
+
+/usr/bin/ld: cannot find -lstdc++: No such file or directory
+clang++-18: error: linker command failed with exit code 1 (use -v to see invocation)
+ninja: build stopped: subcommand failed.
+    
+CMake will not be able to correctly generate this project.
+Call Stack (most recent call first):
+CMakeLists.txt:15 (project)
+
+-- Configuring incomplete, errors occurred!
+ninja: error: loading 'build.ninja': No such file or directory
+
+
+##########################
+# Fixed with agent mode, 
+# Problem: Clang-18 selected GCC-12 but libstdc++-12-dev was not installed
+# Solution: sudo apt install -y libstdc++-12-dev
+# Clang now compiles successfully!
+
+###########################
+# note the rep says ubuntu 22.04 is fine, but this turns out not be the case. It needs 24. something.
+# am now upgraidng ubuntu again
+# Still had to install GCC-14 (but comes with Ubuntu 24.04 so easy)
+
+#############################
+# Now its working, see notes.txt on how to run
+# I did have to install UV and make an env with numpy, pycolmap, wilflow and wildflow-splat

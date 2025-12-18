@@ -1,0 +1,105 @@
+=============================
+LichtFeld Studio – Training & Viewer Notes (Copy/Paste Safe)
+=============================
+
+Why your previous command failed:
+- You pasted a backslash `\` and then a comment on the same line. In Bash the backslash must be the LAST character on the line (no spaces, no comments after it). Otherwise the command gets split and you see errors like `--eval: command not found`.
+- To avoid this pitfall, all commands below are single lines (no trailing backslashes).
+
+--------------------------------
+1) Setup per shell
+--------------------------------
+# Run these once in each new terminal before training/viewing
+cd /home/bwilliams/encode/code/lichtfeld-studio/LichtFeld-Studio
+export LD_LIBRARY_PATH="$PWD/external/libtorch/lib:${LD_LIBRARY_PATH}"
+
+--------------------------------
+2) Train a NEW run (30,000 iters) – will CREATE/OVERWRITE the folder
+--------------------------------
+./build/LichtFeld-Studio -d ../data/tandt/truck -o output/truck_full --eval --headless -i 30000
+
+# Tip: to keep old results, use a different output folder name
+# e.g. ./build/LichtFeld-Studio -d ../data/tandt/truck -o output/truck_run2 --eval --headless -i 30000
+
+--------------------------------
+3) RESUME training on the SAME run (continue to 60,000 total iters)
+--------------------------------
+./build/LichtFeld-Studio -d ../data/tandt/truck -o output/truck_full --eval --headless -i 60000
+
+# Notes:
+# - -i is the TOTAL iterations to reach (not extra). If you already did 30k, setting -i 60000 continues to 60k.
+
+--------------------------------
+4) Launch the VIEWER on the trained run
+--------------------------------
+# Hybrid-GPU laptops often need these vars to force NVIDIA for CUDA–OpenGL interop
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only DRI_PRIME=1 ./build/LichtFeld-Studio -d ../data/tandt/truck -o output/truck_full --eval -i 60000
+
+# Actually view the .ply:
+export LD_LIBRARY_PATH="$PWD/external/libtorch/lib:${LD_LIBRARY_PATH}"
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only DRI_PRIME=1 \
+./build/LichtFeld-Studio --view output/truck/splat_30000.ply --eval
+
+
+
+# If it still crashes on Wayland, log out and choose “Ubuntu on Xorg”, then run the same command again.
+
+--------------------------------
+5) Export images WITHOUT opening the viewer (safe demo)
+--------------------------------
+./build/LichtFeld-Studio -d ../data/tandt/truck -o output/truck_full --eval --save-eval-images --render-mode RGB_D -i 60000 --headless
+
+# Outputs (RGB + depth) will appear under: output/truck_full/
+
+--------------------------------
+6) Quick checks
+--------------------------------
+echo $XDG_SESSION_TYPE
+glxinfo -B | grep 'OpenGL renderer'   # should say NVIDIA for the viewer to work reliably
+watch -n1 nvidia-smi                   # see GPU usage during training/viewing
+
+# if getting cuda issues or gpu issues, try a reboot!
+
+
+# Nav to the right directory
+cd /home/bwilliams/encode/code/lichtfeld-studio/LichtFeld-Studio
+# Set library path so LichtFeld-Studio can find PyTorch C++ libraries at runtime
+export LD_LIBRARY_PATH="$PWD/external/libtorch/lib:${LD_LIBRARY_PATH}"
+
+/home/bwilliams/encode/code/lichtfeld-studio/LichtFeld-Studio/build/LichtFeld-Studio \
+-d /home/bwilliams/encode/code/lichtfeld-studio/data/large/colmap/test_folder \
+-o /home/bwilliams/encode/code/lichtfeld-studio/data/large/output/p1 \
+--eval --headless -i 30000 
+
+##########################################################################################
+# Run on labs spare machine
+cd ~/encode/code/lichtfeld-studio
+export LD_LIBRARY_PATH="$PWD/external/libtorch/lib:${LD_LIBRARY_PATH}"
+# Truck demo:
+/home/bwilliams/encode/code/lichtfeld-studio/build/LichtFeld-Studio \
+ -d /home/bwilliams/encode/code/lichtfeld-studio/data/tandt/truck \
+ -o /home/bwilliams/encode/code/lichtfeld-studio/output/truck_full \
+ --eval \
+ --headless \
+ -i 10000
+
+# Toy reef data:
+./build/LichtFeld-Studio -d ./data/reef_test -o output/reef_test1 --eval --headless -i 100000
+
+--------------------------------
+7) Splat cleanup with wildflow (Python env)
+--------------------------------
+# Setup environment (one-time):
+cd ~/encode/code/lichtfeld-studio/ben_dev
+uv venv ben-splat-env
+source ben-splat-env/bin/activate
+uv pip install pycolmap wildflow
+
+# Run cleanup script:
+cd ~/encode/code/lichtfeld-studio/ben_dev
+# Activate env
+source ben-splat-env/bin/activate
+# Run cleanup. will want to change path to the right clean up file as appropriate.
+python splat_cleanup.py
+
+
