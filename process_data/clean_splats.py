@@ -111,16 +111,16 @@ def main():
         epilog="""
 Example:
   python clean_splats.py --config splat_config.yml --patch p0
-  python clean_splats.py --config splat_config.yml --patch p1
+  python clean_splats.py --config splat_config.yml
 
-Configuration file should contain cleanup parameters and paths.
+If --patch is not provided, uses cleanup.single_patch from config.
         """
     )
     
     parser.add_argument('--config', required=True,
                        help='Path to splat_config.yml configuration file')
-    parser.add_argument('--patch', required=True,
-                       help='Patch name to clean (e.g., p0, p1, p2)')
+    parser.add_argument('--patch',
+                       help='Patch name to clean (e.g., p0, p1, p2). If not provided, uses cleanup.single_patch from config.')
     
     args = parser.parse_args()
     
@@ -137,8 +137,8 @@ Configuration file should contain cleanup parameters and paths.
     cleanup_config = config['cleanup']
     patching_config = config.get('patching', {})
     
-    # Build paths for this specific patch
-    patch_name = args.patch
+    # Get patch name from args or config
+    patch_name = args.patch if args.patch else cleanup_config.get('single_patch', 'p0')
     patch_dir = patches_dir / patch_name
     splat_dir = patch_dir / "sparse" / "splat"
     
