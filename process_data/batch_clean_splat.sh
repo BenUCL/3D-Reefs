@@ -101,8 +101,8 @@ for PATCH_DIR in "${PATCHES[@]}"; do
         continue
     fi
     
-    # Check if any splat_*.ply files exist
-    SPLAT_FILES=$(find "$SPLAT_DIR" -maxdepth 1 -name 'splat_*.ply' -not -name '*_clean.ply' -not -name '*_disposed.ply' 2>/dev/null | wc -l)
+    # Check if any splat_*.ply files exist (with or without patch prefix)
+    SPLAT_FILES=$(find "$SPLAT_DIR" -maxdepth 1 \( -name 'splat_*.ply' -o -name "${PATCH_NAME}_splat_*.ply" \) -not -name '*_clean.ply' -not -name '*_disposed.ply' 2>/dev/null | wc -l)
     if [ "$SPLAT_FILES" -eq 0 ]; then
         echo "WARNING: Skipping $PATCH_NAME: no splat_*.ply files found"
         FAIL_COUNT=$((FAIL_COUNT + 1))
