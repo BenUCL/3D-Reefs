@@ -48,25 +48,28 @@ def load_config(config_path: Path) -> dict:
 PROGRESS_RE = re.compile(r"(\d+)/(\d+)\s*\|\s*Loss:\s*([0-9.eE+-]+)\s*\|\s*Splats:\s*(\d+)")
 
 
-def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path, camera_mapping: dict):
+def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path, camera_mapping: dict, multicam: bool = True):
     """
-    Create temporary directory structure that LichtFeld expects:
+    Create temporary directory structure that LichtFeld expects.
     
-    temp_dir/
-      sparse/0/       -> symlink to actual sparse/0
-      images/
-        left/         -> symlink to actual images/left
-        right/        -> symlink to actual images/right
+    For multicam=True (images in subfolders like left/, right/):
+      temp_dir/
+        sparse/0/       -> symlink to actual sparse/0
+        images/
+          left/         -> symlink to actual images/left
+          right/        -> symlink to actual images/right
     
-    This allows LichtFeld to resolve image paths like "left/image.png" correctly.
+    For multicam=False (images directly in images folder):
+      temp_dir/
+        sparse/0/       -> symlink to actual sparse/0
+        images/         -> symlink to actual images folder
     """
     print(f"Setting up LichtFeld-compatible directory structure in: {temp_dir}")
+    print(f"  Mode: {'multi-camera (subfolders)' if multicam else 'single-camera (direct)'}")
     
     # Create temp structure
     temp_sparse = temp_dir / 'sparse'
     temp_sparse.mkdir(parents=True, exist_ok=True)
-    temp_images = temp_dir / 'images'
-    temp_images.mkdir(parents=True, exist_ok=True)
     
     # Symlink sparse/0 -> actual sparse folder
     sparse_link = temp_sparse / '0'
@@ -75,39 +78,60 @@ def setup_lichtfeld_structure(sparse_dir: Path, images_dir: Path, temp_dir: Path
     sparse_link.symlink_to(sparse_dir.resolve(), target_is_directory=True)
     print(f"  ✓ Created sparse/0 -> {sparse_dir}")
     
-    # Symlink each image subfolder
-    for subfolder in camera_mapping.keys():
-        src_folder = images_dir / subfolder
-        if not src_folder.exists():
-            print(f"  ⚠️  Warning: {subfolder} not found in {images_dir}")
-            continue
+    if multicam:
+        # Multi-camera: create images/ directory and symlink each subfolder
+        temp_images = temp_dir / 'images'
+        temp_images.mkdir(parents=True, exist_ok=True)
         
-        dest_folder = temp_images / subfolder
-        if dest_folder.exists():
-            dest_folder.unlink()
-        dest_folder.symlink_to(src_folder.resolve(), target_is_directory=True)
+        for subfolder in camera_mapping.keys():
+            src_folder = images_dir / subfolder
+            if not src_folder.exists():
+                print(f"  ⚠️  Warning: {subfolder} not found in {images_dir}")
+                continue
+            
+            dest_folder = temp_images / subfolder
+            if dest_folder.exists():
+                dest_folder.unlink()
+            dest_folder.symlink_to(src_folder.resolve(), target_is_directory=True)
+            
+            # Count images
+            img_count = sum(1 for _ in src_folder.glob('**/*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
+            print(f"  ✓ Created images/{subfolder} -> {src_folder} ({img_count} images)")
+    else:
+        # Single-camera: symlink images folder directly
+        temp_images = temp_dir / 'images'
+        if temp_images.exists():
+            temp_images.unlink()
+        temp_images.symlink_to(images_dir.resolve(), target_is_directory=True)
         
         # Count images
-        img_count = sum(1 for _ in src_folder.glob('**/*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
-        print(f"  ✓ Created images/{subfolder} -> {src_folder} ({img_count} images)")
+        img_count = sum(1 for _ in images_dir.glob('*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
+        print(f"  ✓ Created images/ -> {images_dir} ({img_count} images)")
     
     print(f"  ✓ LichtFeld dataset structure ready: {temp_dir}")
     return temp_dir
 
 
-def gather_metadata(sparse_dir: Path, images_dir: Path, camera_mapping: dict):
+def gather_metadata(sparse_dir: Path, images_dir: Path, camera_mapping: dict, multicam: bool = True):
     """Collect metadata about the dataset."""
     meta = {}
     
     # Count images from each camera folder
     camera_counts = {}
     total_images = 0
-    for subfolder, cam_id in camera_mapping.items():
-        folder = images_dir / subfolder
-        if folder.exists():
-            count = sum(1 for _ in folder.glob('**/*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
-            camera_counts[f'camera_{cam_id}_{subfolder}'] = count
-            total_images += count
+    
+    if multicam:
+        for subfolder, cam_id in camera_mapping.items():
+            folder = images_dir / subfolder
+            if folder.exists():
+                count = sum(1 for _ in folder.glob('**/*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
+                camera_counts[f'camera_{cam_id}_{subfolder}'] = count
+                total_images += count
+    else:
+        # Single camera - count images directly in images folder
+        count = sum(1 for _ in images_dir.glob('*') if _.is_file() and _.suffix.lower() in ['.png', '.jpg', '.jpeg'])
+        camera_counts['camera_1'] = count
+        total_images = count
     
     meta['num_images'] = total_images
     meta['camera_counts'] = camera_counts
@@ -271,7 +295,8 @@ Configuration file should contain paths, camera mapping, and training parameters
     lf_bin = Path(config['paths']['lichtfeld_bin']).expanduser()
     patches_dir = Path(config['paths']['patches_dir']).expanduser()
     images_dir = Path(config['paths']['processed_images_dir']).expanduser()
-    camera_mapping = config['camera_mapping']
+    camera_mapping = config.get('camera_mapping', {})
+    multicam = config.get('multicam', True)  # Default to True for backwards compatibility
     
     # Build paths for this specific patch
     patch_name = args.patch
@@ -308,7 +333,7 @@ Configuration file should contain paths, camera mapping, and training parameters
     print()
     
     # Gather metadata
-    meta = gather_metadata(sparse_dir, images_dir, camera_mapping)
+    meta = gather_metadata(sparse_dir, images_dir, camera_mapping, multicam)
     print(f"Found {meta['num_images']} total images across {len(meta['camera_counts'])} cameras")
     for cam_key, count in meta['camera_counts'].items():
         print(f"  {cam_key}: {count} images")
@@ -317,7 +342,7 @@ Configuration file should contain paths, camera mapping, and training parameters
     # Create temporary directory structure
     temp_dir = Path(tempfile.mkdtemp(prefix='lichtfeld_multicam_'))
     try:
-        setup_lichtfeld_structure(sparse_dir, images_dir, temp_dir, camera_mapping)
+        setup_lichtfeld_structure(sparse_dir, images_dir, temp_dir, camera_mapping, multicam)
         print()
         
         # Build LichtFeld command using temp directory and config parameters

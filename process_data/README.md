@@ -12,9 +12,9 @@ This pipeline processes large COLMAP reconstructions into high-quality 3D gaussi
 ## Overview
 
 **Input**: COLMAP reconstruction (cameras.bin, images.bin, points3D.bin, source images). Note, it may be that images from different cameras must be the same dimension or very close to it, though I am unsure.
-**Output**: Cleaned gaussian splat models ready for rendering or merging
+**Output**: Merged gaussian splat model ready for rendering
 
-**Pipeline**: Patch → Train → Clean
+**Pipeline**: Patch → Train → Clean → Merge
 
 ## Prerequisites
 
@@ -151,6 +151,31 @@ p0/sparse/splat/
 
 **Log location:** `patches_dir/splat_cleanup_log.txt`
 
+### Step 5: Merge Splats
+
+Merge all cleaned splat patches into a single unified PLY file:
+
+```bash
+./merge_splats.sh
+```
+
+**What it does:**
+- Finds all patch splat files (prefers cleaned versions if available)
+- Merges vertex data from all patches into single PLY
+- Outputs unified splat model ready for rendering
+
+**Output:**
+```
+patches_dir/
+  merged_splat.ply        # Final merged gaussian splat
+```
+
+**Merge parameters:**
+- `merge.output_file`: Output path for merged splat
+- `merge.prefer_cleaned`: Use cleaned splats if available (default: true)
+
+**Log location:** `patches_dir/splat_merge_log.txt`
+
 ## Script Reference
 
 ### Core Scripts
@@ -160,4 +185,6 @@ p0/sparse/splat/
 - **`batch_train_splat.sh`**: Batch training wrapper with logging
 - **`clean_splats.py`**: Single-patch splat cleanup
 - **`batch_clean_splat.sh`**: Batch cleanup wrapper with logging
+- **`merge_splats.py`**: Merge all patch splats into single PLY
+- **`merge_splats.sh`**: Merge wrapper with logging
 

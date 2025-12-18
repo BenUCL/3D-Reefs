@@ -6,14 +6,14 @@ paths:
   # Path to LichtFeld-Studio binary
   lichtfeld_bin: /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio
   # Root directory containing all patch folders (p0, p1, p2, ...)
-  patches_dir: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches
+  patches_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse_patches
   # Directory containing raw/original unprocessed images
   raw_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/AOR_01
   # Directory containing processed images organized by camera (e.g., images/left/, images/right/)
   # This is the output directory from image preprocessing step
-  processed_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/images
+  processed_images_dir: /home/ben/encode/data/intermediate_data/colmap5/images
   # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
-  sparse_dir: /home/ben/encode/data/intermediate_data/redwoods1/sparse
+  sparse_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse
   # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
   pointcloud_path: 
 
@@ -46,7 +46,7 @@ patching:
 # CAMERA CONFIGURATION
 # Set multicam to true if images are organized in subfolders (e.g., images/left/, images/right/)
 # Set multicam to false if images are directly in the images folder (no subfolders)
-multicam: false
+multicam: true
 # Maps image subfolder names to COLMAP camera IDs (only used when multicam: true)
 camera_mapping:
   left: 1
@@ -56,28 +56,21 @@ camera_mapping:
 # TRAINING PARAMETERS
 training:
   # Number of training iterations (default: 20000)
-  iterations: 20000
+  iterations: 500
   # Maximum gaussians capacity (default: 1000000)
   # WARNING: max_cap ONLY works with strategy=mcmc, NOT with strategy=default! See comment by startegy below.
-  max_cap: 2000000
+  max_cap: 1000000
   # Pose optimization: 'direct', 'mlp', or 'none' (default: direct)
   pose_opt: direct
   # Optimization strategy: 'mcmc' or 'default' (default: mcmc)
   # NOTE: 'default' required due to LFS bug - MCMC strategy fails on some patches with "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth.
-  strategy: mcmc
+  strategy: default
   # Run in headless mode without GUI (default: true)
   headless: true
   # If true, train all patches; if false, train single patch (default: true)
   run_batch: true
   # Patch to train when run_batch=false (default: p0)
   single_patch: p0
-
-# MERGE SPLATS PARAMETERS
-merge:
-  # Output path for merged splat file
-  output_file: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches/merged_splat.ply
-  # Use cleaned splats (with '_clean' suffix) if available, otherwise use raw splats
-  prefer_cleaned: true
 
 # CLEANUP SPLATS PARAMETERS
 # NOTE: May want to view some splats output during training first to check for any funny business or failures.

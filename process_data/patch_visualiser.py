@@ -11,7 +11,7 @@ import math
 from wildflow.splat import patches as splat_patches, BoundingBox
 
 # Constants
-COLMAP_FOLDER = "/home/ben/encode/data/intermediate_data/colmap5/sparse"
+COLMAP_FOLDER = "/home/ben/encode/data/intermediate_data/redwoods1/sparse"
 MAX_CAMERAS = 460
 BUFFER_METERS = 0.0
 TARGET_BINS = 100
