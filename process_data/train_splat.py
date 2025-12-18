@@ -270,7 +270,7 @@ Configuration file should contain paths, camera mapping, and training parameters
     # Extract paths and settings from config
     lf_bin = Path(config['paths']['lichtfeld_bin']).expanduser()
     patches_dir = Path(config['paths']['patches_dir']).expanduser()
-    images_dir = Path(config['paths']['images_dir']).expanduser()
+    images_dir = Path(config['paths']['processed_images_dir']).expanduser()
     camera_mapping = config['camera_mapping']
     
     # Build paths for this specific patch

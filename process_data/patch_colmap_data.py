@@ -43,7 +43,7 @@ class PatchConfig:
         
         # Input paths
         self.sparse_path = Path(paths_cfg['sparse_dir'])
-        self.images_path = Path(paths_cfg['images_dir'])
+        self.images_path = Path(paths_cfg['processed_images_dir'])
         self.pointcloud_path = Path(paths_cfg['pointcloud_path']) if paths_cfg.get('pointcloud_path') else None
         
         # Output path
@@ -274,7 +274,7 @@ Example:
 
 Configuration is read from splat_config.yml which should contain:
   - patching.sparse_dir: Path to COLMAP sparse/0 directory
-  - patching.images_dir: Path to images directory
+  - paths.processed_images_dir: Path to processed images directory
   - paths.patches_dir: Output directory for patches
   - patching.max_cameras: Maximum cameras per patch (default: 1200)
   - patching.buffer_meters: Overlap between patches in meters (default: 0.8)

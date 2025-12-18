@@ -2,6 +2,13 @@
 
 This pipeline processes large COLMAP reconstructions into high-quality 3D gaussian splats through spatial patching, parallel training, and quality-based cleanup.
 
+## Outstanding TODO list
+- Had to switch optimisation strategy to MCMC as was getting this [CUDA error](https://github.com/MrNeRF/LichtFeld-Studio/issues/549) for patches seemingly at random. The downside of this is without MCMC more floaters seem to be added, and supposedly splat quality should be better with MCMC. Also...
+- As a consequence of switching to MCMC, it seems the `max-cap` feature no longer works, it will happily blow through the cap. This can be mitigated by limiting training iters, but this is not optimal. It seems `max-cap` is not actually supported for the default optimiser, but copilot said it could be added. However, unsure if this would create new issues (e.g get stuck with bad splats)
+- Buffer is supposedly in metres but is clearly not when you view the visualiser. Not sure how it would have any reference to metres as now scale was provided. Could make buffer setting clearer (e.g., portion of total area rather than metres).
+- Currently not 100% confident in whether the point cloud is being downsampled or not during patching.
+- The pipeline is probably fragile, not tested on new datasets or edge cases, expect issues with these.
+
 ## Overview
 
 **Input**: COLMAP reconstruction (cameras.bin, images.bin, points3D.bin, source images). Note, it may be that images from different cameras must be the same dimension or very close to it, though I am unsure.
@@ -21,6 +28,21 @@ This pipeline processes large COLMAP reconstructions into high-quality 3D gaussi
 All settings are centralized in `splat_config.yml`.
 
 ## Step-by-Step Workflow
+
+### Step 0: Preprocess Raw Images
+
+Before running COLMAP, downsample and convert raw images using the preprocessing script:
+
+```bash
+./downsample_imgs.sh
+```
+
+**What it does:**
+- Reads settings from `splat_config.yml` (image_preprocessing section)
+- Downsamples images from `raw_images_dir` to `max_dimension` 
+- Converts to specified format (PNG/JPG)
+- Applies resampling filter (Lanczos by default for sharp details)
+- Outputs to `processed_images_dir`
 
 ### Step 1: Determine Patch Size
 

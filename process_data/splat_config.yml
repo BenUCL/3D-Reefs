@@ -7,12 +7,28 @@ paths:
   lichtfeld_bin: /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio
   # Root directory containing all patch folders (p0, p1, p2, ...)
   patches_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse_patches
-  # Directory containing source images organized by camera (e.g., images/left/, images/right/)
-  images_dir: /home/ben/encode/data/intermediate_data/colmap5/images
+  # Directory containing raw/original unprocessed images
+  raw_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/AOR_01
+  # Directory containing processed images organized by camera (e.g., images/left/, images/right/)
+  # This is the output directory from image preprocessing step
+  processed_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/images
   # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
   sparse_dir: /home/ben/encode/data/intermediate_data/colmap5/sparse
   # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
   pointcloud_path: 
+
+# IMAGE PREPROCESSING
+# Run this step first before COLMAP processing using downsample_imgs.sh
+image_preprocessing:
+  # Maximum dimension (width or height) for downsampled images
+  max_dimension: 3000
+  # Output format: 'png' or 'jpg'
+  output_format: png
+  # Resampling filter: 'Lanczos' (sharp, best quality), 'Mitchell', 'Catrom', 'Triangle', 'Box'
+  filter: Lanczos
+  # If true, organize output into camera subfolders (left/, right/, etc.) based on filename patterns
+  # If false, keep all images in single directory
+  organize_by_camera: false
 
 # PATCHING CONFIGURATION
 patching:
@@ -37,8 +53,9 @@ camera_mapping:
 # TRAINING PARAMETERS
 training:
   # Number of training iterations (default: 20000)
-  iterations: 15000
+  iterations: 10000
   # Maximum gaussians capacity (default: 1000000)
+  # WARNING: max_cap ONLY works with strategy=mcmc, NOT with strategy=default! See comment by startegy below.
   max_cap: 1000000
   # Pose optimization: 'direct', 'mlp', or 'none' (default: direct)
   pose_opt: direct
@@ -48,7 +65,7 @@ training:
   # Run in headless mode without GUI (default: true)
   headless: true
   # If true, train all patches; if false, train single patch (default: true)
-  run_batch: false
+  run_batch: true
   # Patch to train when run_batch=false (default: p0)
   single_patch: p0
 
