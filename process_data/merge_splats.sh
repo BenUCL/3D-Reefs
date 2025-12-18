@@ -16,7 +16,7 @@ if [ $# -ne 0 ]; then
     echo "Usage: $0"
     echo ""
     echo "Configuration is read from splat_config.yml"
-    echo "Set merge.output_file to specify output path"
+    echo "Set paths.merged_splat to specify output path"
     echo "Set merge.prefer_cleaned to prefer cleaned splats (default: true)"
     exit 1
 fi

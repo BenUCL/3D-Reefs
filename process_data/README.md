@@ -171,7 +171,7 @@ patches_dir/
 ```
 
 **Merge parameters:**
-- `merge.output_file`: Output path for merged splat
+- `paths.merged_splat`: Output path for merged splat
 - `merge.prefer_cleaned`: Use cleaned splats if available (default: true)
 
 **Log location:** `patches_dir/splat_merge_log.txt`

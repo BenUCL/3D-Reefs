@@ -137,8 +137,8 @@ Configuration file should contain merge parameters and paths.
     patches_dir = Path(config['paths']['patches_dir']).expanduser()
     merge_config = config.get('merge', {})
     
-    # Get output path - default to patches_dir/merged_splat.ply if not specified
-    output_file = merge_config.get('output_file')
+    # Get output path from paths.merged_splat, default to patches_dir/merged_splat.ply
+    output_file = config['paths'].get('merged_splat')
     if output_file:
         output_file = Path(output_file).expanduser()
     else:

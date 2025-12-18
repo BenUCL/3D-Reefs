@@ -16,6 +16,8 @@ paths:
   sparse_dir: /home/ben/encode/data/intermediate_data/redwoods1/sparse
   # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
   pointcloud_path: 
+  # Output path for merged splat file (default: patches_dir/merged_splat.ply)
+  merged_splat: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches/merged_splat.ply 
 
 # IMAGE PREPROCESSING
 # Run this step first before COLMAP processing using downsample_imgs.sh
@@ -74,8 +76,6 @@ training:
 
 # MERGE SPLATS PARAMETERS
 merge:
-  # Output path for merged splat file
-  output_file: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches/merged_splat.ply
   # Use cleaned splats (with '_clean' suffix) if available, otherwise use raw splats
   prefer_cleaned: true
 
