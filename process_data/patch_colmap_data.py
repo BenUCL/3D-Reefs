@@ -164,11 +164,23 @@ def step2_split_cameras(config: PatchConfig, patches_list: List[Dict], min_z: fl
             except Exception as e:
                 print(f"  ✗ p{i}: Failed to export txt - {e}")
     
-    # Save patch metadata (boundaries) for each patch
+    # Save patch metadata (boundaries and image list) for each patch
     print(f"\nSaving patch metadata...")
     for i, patch in enumerate(patches_list):
         patch_dir = config.output_path / f"p{i}"
+        patch_sparse = patch_dir / "sparse" / "0"
         metadata_file = patch_dir / "patch_metadata.json"
+        
+        # Get image names from this patch's reconstruction
+        # The image names in COLMAP already include relative paths (e.g., "left/0001.png" or "0001.png")
+        image_names = []
+        if patch_sparse.exists():
+            try:
+                patch_reconstruction = pycolmap.Reconstruction(str(patch_sparse))
+                image_names = sorted([img.name for img in patch_reconstruction.images.values()])
+            except Exception as e:
+                print(f"  ⚠ p{i}: Could not read images from reconstruction - {e}")
+        
         metadata = {
             "patch_id": i,
             "min_x": patch['min_x'],
@@ -177,11 +189,13 @@ def step2_split_cameras(config: PatchConfig, patches_list: List[Dict], min_z: fl
             "max_y": patch['max_y'],
             "min_z": min_z,
             "max_z": max_z,
-            "buffer_meters": config.buffer_meters
+            "buffer_meters": config.buffer_meters,
+            "image_count": len(image_names),
+            "images": image_names
         }
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
-        print(f"  ✓ p{i}: patch_metadata.json saved")
+        print(f"  ✓ p{i}: patch_metadata.json saved ({len(image_names)} images)")
     
     return {"result": result, "patches_count": len(patches_list)}
 
