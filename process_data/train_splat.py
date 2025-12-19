@@ -399,9 +399,22 @@ Configuration file should contain paths, camera mapping, and training parameters
         print(f"✓ Report written to: {report_path}")
         print(f"✓ Full log: {run_result['log']}")
         
+        # Check if training actually succeeded by looking for splat files
+        # LFS sometimes crashes during shutdown (exit code -11/245) even after successful training
+        splat_files = list(output_dir.glob(f"{patch_name}_splat_*.ply"))
+        training_succeeded = len(splat_files) > 0
+        
         if run_result['return_code'] != 0:
-            print(f"\nERROR: LichtFeld-Studio exited with code {run_result['return_code']}")
-            sys.exit(run_result['return_code'])
+            if training_succeeded:
+                # Training completed but LFS crashed during shutdown - this is OK
+                print(f"\n⚠️  LichtFeld-Studio exited with code {run_result['return_code']} (likely shutdown crash)")
+                print(f"✓ But training succeeded - found {len(splat_files)} splat file(s)")
+                print("\nTraining completed successfully!")
+            else:
+                # Actual failure - no splat files created
+                print(f"\nERROR: LichtFeld-Studio exited with code {run_result['return_code']}")
+                print("       No splat files were created - training failed")
+                sys.exit(run_result['return_code'])
         else:
             print("\nTraining completed successfully!")
     
