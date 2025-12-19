@@ -348,8 +348,21 @@ Configuration file should contain paths, camera mapping, and training parameters
         # Build LichtFeld command using temp directory and config parameters
         cmd = [str(lf_bin), '-d', str(temp_dir), '-o', str(output_dir)]
         
-        # Add training parameters from config
+        # Add LFS config file FIRST so CLI args can override (for troubleshooting failed patches)
         train_config = config['training']
+        lfs_config = train_config.get('lfs_config')
+        if lfs_config:
+            # Try config dir first, then script dir
+            lfs_config_path = config_path.parent / 'lfs_configs' / lfs_config
+            if not lfs_config_path.exists():
+                lfs_config_path = Path(__file__).parent / 'lfs_configs' / lfs_config
+            if lfs_config_path.exists():
+                cmd.extend(['--config', str(lfs_config_path)])
+                print(f"  Using LFS config: {lfs_config}")
+            else:
+                print(f"  WARNING: LFS config not found: {lfs_config}")
+        
+        # Add training parameters from YAML config (these override JSON config)
         if train_config.get('headless', True):
             cmd.append('--headless')
         cmd.extend(['-i', str(train_config.get('iterations', 20000))])

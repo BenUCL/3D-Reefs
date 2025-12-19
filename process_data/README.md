@@ -3,9 +3,7 @@
 This pipeline processes large COLMAP reconstructions into high-quality 3D gaussian splats through spatial patching, parallel training, and quality-based cleanup.
 
 ## Outstanding TODO list
-- Had to switch optimisation strategy to MCMC as was getting this [CUDA error](https://github.com/MrNeRF/LichtFeld-Studio/issues/549) for patches seemingly at random. The downside of this is without MCMC more floaters seem to be added, and supposedly splat quality should be better with MCMC. Also...
-- As a consequence of switching to MCMC, it seems the `max-cap` feature no longer works, it will happily blow through the cap. This can be mitigated by limiting training iters, but this is not optimal. It seems `max-cap` is not actually supported for the default optimiser, but copilot said it could be added. However, unsure if this would create new issues (e.g get stuck with bad splats)
-- Buffer is supposedly in metres but is clearly not when you view the visualiser. Not sure how it would have any reference to metres as now scale was provided. Could make buffer setting clearer (e.g., portion of total area rather than metres).
+- Buffer is supposedly in metres but is clearly not when you view the visualiser. Not sure how it would have any reference to metres as no scale was provided. Could make buffer setting clearer (e.g., portion of total area rather than metres).
 - Currently not 100% confident in whether the point cloud is being downsampled or not during patching.
 - The pipeline is probably fragile, not tested on new datasets or edge cases, expect issues with these.
 
@@ -114,9 +112,22 @@ p0/sparse/splat/
 
 **Log location:** `patches_dir/splat_training_log.txt`
 
-**TODO**
-- Currently setting `max_cap` in the config doesn't seem to do anything. It will just keeping adding gaussians.
-- Had to disable MCMC as was getting "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth. However, MCMC is meant to produce more accurate splats so I would like this to work.
+### Troubleshooting Training Failures
+
+I find during training often some patches may fail with `adam_step_cu kernel launch failed: invalid configuration argument`. 
+
+**Fix:** Use the `large_scene.json` config which increases `init_scaling` from 0.1 to 0.3:
+
+1. Set `training.lfs_config: large_scene.json` in `splat_config.yml`
+2. Set `training.single_patch: [p7, p12]` (list of failed patches)
+3. Set `training.run_batch: false`
+4. Re-run `./batch_train_splat.sh`
+
+**If splats explode (look like radiating lines):** Try intermediate values:
+- `init_scaling`: 0.2, 0.3, 0.4 (increase in 0.1 increments)
+- Could also try reduce learning rates: `means_lr`, `scaling_lr`, `opacity_lr`
+
+LFS configs are in `lfs_configs/`. Edit `large_scene.json` to tune parameters.
 
 ### Step 4: Clean Gaussian Splats
 

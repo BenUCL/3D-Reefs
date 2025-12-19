@@ -35,7 +35,16 @@ fi
 # Parse config using Python to extract values
 PATCHES_DIR=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c['paths']['patches_dir'])")
 RUN_BATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(str(c['training'].get('run_batch', True)).lower())")
-SINGLE_PATCH=$(python3 -c "import yaml; c=yaml.safe_load(open('$CONFIG_FILE')); print(c['training'].get('single_patch', 'p0'))")
+# single_patch can be string "p0" or list ["p0", "p7"] - normalize to space-separated string
+SINGLE_PATCHES=$(python3 -c "
+import yaml
+c = yaml.safe_load(open('$CONFIG_FILE'))
+sp = c['training'].get('single_patch', 'p0')
+if isinstance(sp, list):
+    print(' '.join(sp))
+else:
+    print(sp)
+")
 
 # Setup logging
 LOG_FILE="$PATCHES_DIR/splat_training_log.txt"
@@ -64,13 +73,17 @@ if [ "$RUN_BATCH" = "true" ]; then
     
     echo "Found ${#PATCHES[@]} patches to process"
 else
-    PATCH_PATH="$PATCHES_DIR/$SINGLE_PATCH"
-    if [ ! -d "$PATCH_PATH" ]; then
-        echo "ERROR: Patch directory not found: $PATCH_PATH"
-        exit 1
-    fi
-    PATCHES=("$PATCH_PATH")
-    echo "Training single patch: $SINGLE_PATCH"
+    # Build array from space-separated patch names
+    PATCHES=()
+    for PATCH_NAME in $SINGLE_PATCHES; do
+        PATCH_PATH="$PATCHES_DIR/$PATCH_NAME"
+        if [ ! -d "$PATCH_PATH" ]; then
+            echo "ERROR: Patch directory not found: $PATCH_PATH"
+            exit 1
+        fi
+        PATCHES+=("$PATCH_PATH")
+    done
+    echo "Training ${#PATCHES[@]} patch(es): $SINGLE_PATCHES"
 fi
 
 echo ""
