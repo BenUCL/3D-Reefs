@@ -2,22 +2,41 @@
 #
 # batch_train_splat.sh
 #
-# Train gaussian splats for all patches using configuration from splat_config.yml.
+# Train gaussian splats for all patches using a config file.
 # If a patch fails, it logs the error and continues to the next one automatically.
+#
+# Usage: ./batch_train_splat.sh --config <path_to_config.yml>
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TRAIN_SCRIPT="$SCRIPT_DIR/train_splat.py"
-CONFIG_FILE="$SCRIPT_DIR/splat_config.yml"
 
-# Check arguments
-if [ $# -ne 0 ]; then
-    echo "Usage: $0"
+# Parse arguments
+CONFIG_FILE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config|-c)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 --config <path_to_config.yml>"
+            exit 1
+            ;;
+    esac
+done
+
+# Check config argument was provided
+if [ -z "$CONFIG_FILE" ]; then
+    echo "ERROR: --config argument is required"
     echo ""
-    echo "Configuration is read from splat_config.yml"
-    echo "Set training.run_batch=true to train all patches"
-    echo "Set training.run_batch=false to train single patch specified in training.single_patch"
+    echo "Usage: $0 --config <path_to_config.yml>"
+    echo ""
+    echo "Example:"
+    echo "  $0 --config splat_config.yml"
+    echo "  $0 --config /path/to/splat_config_redwood1.yml"
     exit 1
 fi
 
@@ -28,7 +47,7 @@ if [ ! -f "$TRAIN_SCRIPT" ]; then
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then 
-    echo "ERROR: splat_config.yml not found: $CONFIG_FILE"
+    echo "ERROR: Config file not found: $CONFIG_FILE"
     exit 1
 fi
 

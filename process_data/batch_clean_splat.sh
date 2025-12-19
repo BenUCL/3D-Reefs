@@ -2,8 +2,10 @@
 #
 # batch_clean_splat.sh
 #
-# Clean gaussian splats for all patches using configuration from splat_config.yml.
+# Clean gaussian splats for all patches using a config file.
 # If a patch fails, it logs the error and continues to the next one automatically.
+#
+# Usage: ./batch_clean_splat.sh --config <path_to_config.yml>
 #
 # TODO: Add support for saving disposed splats (filtered-out splats) to separate files
 #       for quality verification and parameter tuning
@@ -12,15 +14,32 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLEAN_SCRIPT="$SCRIPT_DIR/clean_splats.py"
-CONFIG_FILE="$SCRIPT_DIR/splat_config.yml"
 
-# Check arguments
-if [ $# -ne 0 ]; then
-    echo "Usage: $0"
+# Parse arguments
+CONFIG_FILE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --config|-c)
+            CONFIG_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 --config <path_to_config.yml>"
+            exit 1
+            ;;
+    esac
+done
+
+# Check config argument was provided
+if [ -z "$CONFIG_FILE" ]; then
+    echo "ERROR: --config argument is required"
     echo ""
-    echo "Configuration is read from splat_config.yml"
-    echo "Set cleanup.run_batch=true to clean all patches"
-    echo "Set cleanup.run_batch=false to clean single patch specified in cleanup.single_patch"
+    echo "Usage: $0 --config <path_to_config.yml>"
+    echo ""
+    echo "Example:"
+    echo "  $0 --config splat_config.yml"
+    echo "  $0 --config /path/to/splat_config_redwood1.yml"
     exit 1
 fi
 
@@ -31,7 +50,7 @@ if [ ! -f "$CLEAN_SCRIPT" ]; then
 fi
 
 if [ ! -f "$CONFIG_FILE" ]; then 
-    echo "ERROR: splat_config.yml not found: $CONFIG_FILE"
+    echo "ERROR: Config file not found: $CONFIG_FILE"
     exit 1
 fi
 

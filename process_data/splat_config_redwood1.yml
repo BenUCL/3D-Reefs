@@ -1,0 +1,102 @@
+# Splat Training & Cleanup Configuration
+# This file contains all paths and parameters for gaussian splatting workflows
+
+# PATHS
+paths:
+  # Path to LichtFeld-Studio binary
+  lichtfeld_bin: /home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio
+  # Root directory containing all patch folders (p0, p1, p2, ...)
+  patches_dir: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches
+  # Directory containing raw/original unprocessed images
+  raw_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/AOR_01
+  # Directory containing processed images organized by camera (e.g., images/left/, images/right/)
+  # This is the output directory from image preprocessing step
+  processed_images_dir: /home/ben/encode/data/intermediate_data/redwoods1/images
+  # COLMAP sparse reconstruction directory (contains cameras.bin, images.bin, points3D.bin)
+  sparse_dir: /home/ben/encode/data/intermediate_data/redwoods1/sparse
+  # Optional: Path to dense point cloud PLY for denser initialization (leave empty to use COLMAP points)
+  pointcloud_path: 
+  # Output path for merged splat file (default: patches_dir/merged_splat.ply)
+  merged_splat: /home/ben/encode/data/intermediate_data/redwoods1/sparse_patches/merged_splat.ply 
+
+# IMAGE PREPROCESSING
+# Run this step first before COLMAP processing using downsample_imgs.sh
+image_preprocessing:
+  # Maximum dimension (width or height) for downsampled images, LFS handles up to 4096x4096
+  max_dimension: 3000
+  # Output format: 'png' or 'jpg'
+  output_format: png
+  # Resampling filter (no idea what this is lol): 'Lanczos' (sharp, best quality), 'Mitchell', 'Catrom', 'Triangle', 'Box'
+  filter: Lanczos
+  # If true, organize output into camera subfolders (left/, right/, etc.) based on filename patterns
+  # If false, keep all images in single directory
+  organize_by_camera: false
+
+# PATCHING CONFIGURATION
+patching:
+  # Maximum cameras per patch
+  max_cameras: 800
+  # Overlap between patches in meters - use path_visualiser.py to test!
+  buffer_meters: 0.1
+  # Use COLMAP sparse points (points3D.bin) for initialization (default: true)
+  use_colmap_points: true
+  # If using external PLY, percentage to sample (default: 5.0, ignored if using COLMAP points)
+  #TODO: this is ignored currently if using colmap points3d.bin I believe, fix that?
+  sample_percentage: 5.0
+
+
+# CAMERA CONFIGURATION
+# Set multicam to true if images are organized in subfolders (e.g., images/left/, images/right/)
+# Set multicam to false if images are directly in the images folder (no subfolders)
+multicam: false
+# Maps image subfolder names to COLMAP camera IDs (only used when multicam: true)
+camera_mapping:
+  left: 1
+  right: 2
+  # add more mappings as needed
+
+# TRAINING PARAMETERS
+training:
+  # Number of training iterations (default: 20000)
+  iterations: 20000
+  # Maximum gaussians capacity (default: 1000000)
+  # WARNING: max_cap ONLY works with strategy=mcmc, NOT with strategy=default! See comment by startegy below.
+  max_cap: 1000000
+  # Pose optimization was removed in LFS v0.3.0 (required libtorch which was removed). Use lfs-v0.2.0-compatible branch if pose optimization is needed
+  # pose_opt: direct  # options were: 'direct', 'mlp', or 'none'
+  # Optimization strategy: 'mcmc' or 'default' (mcmc seems to give better results but is more likely to error)
+  strategy: mcmc
+  # Run in headless mode without GUI (default: true)
+  headless: true
+  # If true, train all patches; if false, train patches in single_patch list
+  run_batch: true
+  # Patch(es) to train when run_batch=false. Single: ["p0"] or list: ["p0", "p7", "p12"]
+  single_patch: ["p10"]
+  # LFS config file (in lfs_configs/): 'default.json'
+  # See Troubleshooting in README if patches fail with adam_step_cu errors, try `increase_init_scaling.json`
+  lfs_config: default.json
+
+# CLEANUP SPLATS PARAMETERS
+# NOTE: May want to view some splats output during training first to check for any funny business or failures.
+cleanup:
+  # Maximum splat area to keep - removes oversized splats (default: 0.004)
+  max_area: 0.004
+  # Minimum neighbors within radius for a splat to be kept (default: 20)
+  min_neighbors: 20
+  # Radius in meters for neighbor search (default: 0.1) #TODO: As above, this is not actually conssitant with metres
+  radius: 0.05
+  # Each patch has a boundary which is stored in their patch_metadata.json. 
+  # Set filter_boundaries to true to shrink the boundary, removing splats outside this shrunken boundary.
+  filter_boundaries: true
+  # If filter_boundaries=true, set the distance by which to shrink each patches boundary. 
+  # Commonly it will be that this should match patching.buffer_meters above, so as to trim patches down so there is no overlap between them.
+  boundary_buffer: 0.1
+  # If true, clean all patches; if false, clean single patch (default: true)
+  run_batch: true
+  # Patch to clean when run_batch=false (default: p0)
+  single_patch: p10
+
+# MERGE SPLATS PARAMETERS
+merge:
+  # Use cleaned splats (with '_clean' suffix) if available, otherwise use raw splats
+  prefer_cleaned: true
