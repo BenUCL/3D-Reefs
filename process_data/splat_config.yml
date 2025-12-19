@@ -71,7 +71,7 @@ training:
   # If true, train all patches; if false, train patches in single_patch list
   run_batch: false
   # Patch(es) to train when run_batch=false. Single: ["p0"] or list: ["p0", "p7", "p12"]
-  single_patch: ["p7"]
+  single_patch: ["p10"]
   # LFS config file (in lfs_configs/): 'default.json'
   # See Troubleshooting in README if patches fail with adam_step_cu errors, try `increase_init_scaling.json`
   lfs_config: increase_init_scaling.json
@@ -92,9 +92,9 @@ cleanup:
   # Commonly it will be that this should match patching.buffer_meters above, so as to trim patches down so there is no overlap between them.
   boundary_buffer: 0.1
   # If true, clean all patches; if false, clean single patch (default: true)
-  run_batch: true
+  run_batch: false
   # Patch to clean when run_batch=false (default: p0)
-  single_patch: p7
+  single_patch: p10
 
 # MERGE SPLATS PARAMETERS
 merge:

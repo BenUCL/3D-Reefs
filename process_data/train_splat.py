@@ -316,6 +316,29 @@ Configuration file should contain paths, camera mapping, and training parameters
         print(f"ERROR: Images directory not found: {images_dir}")
         sys.exit(2)
     
+    # Check for multicam mismatch: if multicam=false but images dir contains subdirectories
+    if not multicam:
+        subdirs = [d for d in images_dir.iterdir() if d.is_dir()]
+        if len(subdirs) >= 2:
+            print()
+            print("⚠️  WARNING: multicam is set to 'false' but found multiple subdirectories in images folder:")
+            for sd in subdirs[:5]:  # Show first 5
+                print(f"    - {sd.name}/")
+            if len(subdirs) > 5:
+                print(f"    ... and {len(subdirs) - 5} more")
+            print()
+            print("If these represent different cameras (e.g., left/, right/), you should set:")
+            print("  multicam: true")
+            print("  camera_mapping:")
+            for sd in subdirs:
+                print(f"    {sd.name}: <camera_id>")
+            print()
+            response = input("Continue anyway (may not use intrinsics of multiple cameras)? [Y/n]: ")
+            if response.lower() == 'n':
+                print("Aborted. Update multicam setting in config and re-run.")
+                sys.exit(0)
+            print()
+    
     # Check that required COLMAP files exist
     required_files = ['cameras.bin', 'images.bin']
     for fname in required_files:
