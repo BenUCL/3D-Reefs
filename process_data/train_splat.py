@@ -354,7 +354,7 @@ Configuration file should contain paths, camera mapping, and training parameters
             cmd.append('--headless')
         cmd.extend(['-i', str(train_config.get('iterations', 20000))])
         cmd.extend(['--max-cap', str(train_config.get('max_cap', 1000000))])
-        cmd.extend(['--pose-opt', train_config.get('pose_opt', 'direct')])
+        # Note: --pose-opt was removed in LFS v0.3.0 (pose optimization required libtorch)
         cmd.extend(['--strategy', train_config.get('strategy', 'mcmc')])
         
         cmd_str = ' '.join(shlex.quote(c) for c in cmd)

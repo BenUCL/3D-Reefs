@@ -62,10 +62,11 @@ training:
   # Maximum gaussians capacity (default: 1000000)
   # WARNING: max_cap ONLY works with strategy=mcmc, NOT with strategy=default! See comment by startegy below.
   max_cap: 2000000
-  # Pose optimization: 'direct', 'mlp', or 'none' (default: direct)
-  pose_opt: direct
+  # Pose optimization was removed in LFS v0.3.0 (required libtorch which was removed)
+  # Use lfs-v0.2.0-compatible branch if pose optimization is needed
+  # pose_opt: direct  # options were: 'direct', 'mlp', or 'none'
   # Optimization strategy: 'mcmc' or 'default' (default: mcmc)
-  # NOTE: 'default' required due to LFS bug - MCMC strategy fails on some patches with "CUDA error: invalid configuration argument" in MulBackward1 during adaptive Gaussian growth.
+  # NOTE: MCMC bug in LFS v0.2.0 was fixed in v0.3.0 (libtorch removed)
   strategy: mcmc
   # Run in headless mode without GUI (default: true)
   headless: true
