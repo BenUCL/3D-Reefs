@@ -1,5 +1,9 @@
 # Troubleshooting Patch Training Failures: The p7 Saga
 
+> **LFS Version Backups:**
+> - v0.2.0 backup: `/home/ben/encode/code/lichtfeld-studio/build_backup_20251218/LichtFeld-Studio`
+> - v0.3.0 (current): `/home/ben/encode/code/lichtfeld-studio/build/LichtFeld-Studio`
+
 ## Initial Issue
 
 Some patche consistently crashed during MCMC training with:
